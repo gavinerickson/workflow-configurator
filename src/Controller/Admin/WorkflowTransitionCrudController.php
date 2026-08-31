@@ -52,8 +52,15 @@ class WorkflowTransitionCrudController extends AbstractCrudController
     public function configureAssets(Assets $assets): Assets
     {
         // Filters the froms/tos options to the selected definition's places
-        // as the Definition dropdown changes (§6.1).
-        return $assets->addAssetMapperEntry(Asset::new('workflow-configurator/transition-form')->onlyOnForms());
+        // as the Definition dropdown changes. Only with AssetMapper installed:
+        // without it the form still works, just without the dependent-select
+        // and panel-toggling enhancement — EasyAdmin throws on an AssetMapper
+        // entry when the component is absent, which would 500 the whole form.
+        if (class_exists(\Symfony\Component\AssetMapper\AssetMapper::class)) {
+            $assets = $assets->addAssetMapperEntry(Asset::new('workflow-configurator/transition-form')->onlyOnForms());
+        }
+
+        return $assets;
     }
 
     public function configureFields(string $pageName): iterable

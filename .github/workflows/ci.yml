@@ -26,3 +26,54 @@ jobs:
 
             - name: PHPStan
               run: vendor/bin/phpstan analyse --no-progress
+
+    # The install story, proven against a genuinely fresh consumer: Flex
+    # registration, headless container lint, the five-table schema, the
+    # documented migrations:diff step, and the table_prefix override.
+    consumer-skeleton:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  path: bundle
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.4'
+                  coverage: none
+
+            - name: Create a bare Symfony skeleton consumer
+              run: composer create-project symfony/skeleton consumer --no-interaction --no-progress
+
+            - name: Install the bundle from this checkout
+              working-directory: consumer
+              run: |
+                  composer config repositories.bundle path ../bundle
+                  composer require gavinerickson/workflow-configurator:@dev symfony/orm-pack -W --no-interaction --no-progress
+                  grep -q "WorkflowConfiguratorBundle" config/bundles.php
+
+            - name: Headless container lints
+              working-directory: consumer
+              run: |
+                  echo 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/app.db"' > .env.local
+                  php bin/console lint:container
+
+            - name: Schema is exactly the five workflow tables
+              working-directory: consumer
+              run: |
+                  php bin/console doctrine:schema:create --dump-sql > schema.sql
+                  test "$(grep -c '^CREATE TABLE workflow_' schema.sql)" = 5
+
+            - name: The documented migrations:diff step generates the migration
+              working-directory: consumer
+              run: |
+                  php bin/console doctrine:database:create
+                  php bin/console doctrine:migrations:diff --no-interaction
+                  test "$(grep -hc 'CREATE TABLE workflow_' migrations/Version*.php)" = 5
+
+            - name: A table_prefix override renames all five tables
+              working-directory: consumer
+              run: |
+                  printf 'workflow_configurator:\n    table_prefix: wc_\n' > config/packages/workflow_configurator.yaml
+                  php bin/console cache:clear
+                  test "$(php bin/console doctrine:schema:create --dump-sql | grep -c '^CREATE TABLE wc_')" = 5

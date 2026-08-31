@@ -4,8 +4,9 @@ parameters:
         - src
         - tests
     symfony:
-        # Dumped by the test kernel; run phpunit before phpstan (CI does).
-        containerXmlPath: var/cache/test/WorkflowConfigurator_Tests_TestKernelTestDebugContainer.xml
+        # Dumped by the admin test kernel — the superset container (base
+        # kernel + EasyAdmin stack); run phpunit before phpstan (CI does).
+        containerXmlPath: var/cache/test/WorkflowConfigurator_Tests_AdminTestKernelTestDebugContainer.xml
     ignoreErrors:
         # phpstan-symfony narrows kernel.bundles to the dumped *test*
         # container's literal bundle list, where EasyAdminBundle never

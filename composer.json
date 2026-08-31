@@ -27,6 +27,9 @@
     },
     "require-dev": {
         "easycorp/easyadmin-bundle": "^5.0",
+        "symfony/asset": "^7.2 || ^8.0",
+        "symfony/browser-kit": "^7.2 || ^8.0",
+        "symfony/css-selector": "^7.2 || ^8.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-doctrine": "^2.0",
@@ -35,7 +38,10 @@
         "symfony/form": "^7.2 || ^8.0",
         "symfony/framework-bundle": "^7.2 || ^8.0",
         "symfony/property-access": "^7.2 || ^8.0",
-        "symfony/security-http": "^7.2 || ^8.0"
+        "symfony/security-bundle": "^7.2 || ^8.0",
+        "symfony/security-http": "^7.2 || ^8.0",
+        "symfony/translation": "^7.2 || ^8.0",
+        "symfony/twig-bundle": "^7.2 || ^8.0"
     },
     "suggest": {
         "easycorp/easyadmin-bundle": "The admin CRUD, Mermaid diagram and guided transition form register only when EasyAdmin is present",

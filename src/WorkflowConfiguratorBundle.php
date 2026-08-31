@@ -127,7 +127,11 @@ class WorkflowConfiguratorBundle extends AbstractBundle
 
         // Keyed on the EasyAdmin *bundle* being registered, not the package
         // being installed — a dev dependency must not activate the layer.
-        if ($builder->hasExtension('easy_admin')) {
+        // Via kernel.bundles, not hasExtension(): loadExtension runs against
+        // the temporary merge builder, which only knows this bundle's own
+        // extension, so hasExtension() is false for every other bundle.
+        $bundles = (array) $builder->getParameter('kernel.bundles');
+        if (isset($bundles['EasyAdminBundle'])) {
             $services->set(WorkflowDefinitionCrudController::class);
             $services->set(WorkflowPlaceCrudController::class);
             $services->set(WorkflowTransitionCrudController::class);

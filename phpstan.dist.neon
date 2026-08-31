@@ -7,6 +7,12 @@ parameters:
         # Dumped by the test kernel; run phpunit before phpstan (CI does).
         containerXmlPath: var/cache/test/WorkflowConfigurator_Tests_TestKernelTestDebugContainer.xml
     ignoreErrors:
+        # phpstan-symfony narrows kernel.bundles to the dumped *test*
+        # container's literal bundle list, where EasyAdminBundle never
+        # appears; real consumers' lists differ.
+        -
+            identifier: isset.offset
+            path: src/WorkflowConfiguratorBundle.php
         # Maker-style entities: the owning side is null until attached, while
         # the column is NOT NULL — enforced by the object graph, not the type.
         -

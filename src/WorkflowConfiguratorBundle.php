@@ -79,6 +79,14 @@ class WorkflowConfiguratorBundle extends AbstractBundle
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        // Belt and braces with the #[AutoconfigureTag] attributes on the
+        // interfaces: the explicit registration does not depend on the
+        // consumer's attribute-autoconfiguration behaviour.
+        $builder->registerForAutoconfiguration(Task\WorkflowTaskInterface::class)
+            ->addTag('workflow_configurator.task');
+        $builder->registerForAutoconfiguration(TransitionRoleInterface::class)
+            ->addTag('workflow_configurator.transition_role');
+
         $services = $container->services()
             ->defaults()->autowire()->autoconfigure();
 
@@ -117,7 +125,9 @@ class WorkflowConfiguratorBundle extends AbstractBundle
             $services->set(TransitionMetadataType::class);
         }
 
-        if (class_exists(AbstractCrudController::class)) {
+        // Keyed on the EasyAdmin *bundle* being registered, not the package
+        // being installed — a dev dependency must not activate the layer.
+        if ($builder->hasExtension('easy_admin')) {
             $services->set(WorkflowDefinitionCrudController::class);
             $services->set(WorkflowPlaceCrudController::class);
             $services->set(WorkflowTransitionCrudController::class);

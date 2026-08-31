@@ -5,6 +5,10 @@
          colors="true"
          failOnWarning="true"
          cacheDirectory=".phpunit.cache">
+    <php>
+        <server name="KERNEL_CLASS" value="WorkflowConfigurator\Tests\TestKernel"/>
+        <server name="APP_ENV" value="test"/>
+    </php>
     <testsuites>
         <testsuite name="workflow-configurator">
             <directory>tests</directory>

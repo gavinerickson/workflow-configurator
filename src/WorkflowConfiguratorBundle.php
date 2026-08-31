@@ -2,23 +2,40 @@
 
 namespace WorkflowConfigurator;
 
+use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
+use Symfony\Component\AssetMapper\AssetMapperInterface;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
+use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
+use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
 use WorkflowConfigurator\Doctrine\TablePrefixListener;
+use WorkflowConfigurator\Form\TransitionMetadataType;
 use WorkflowConfigurator\Repository\WorkflowDefinitionRepository;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
+use WorkflowConfigurator\Task\WorkflowTaskMap;
+use WorkflowConfigurator\Validator\KnownWorkflowTaskValidator;
+use WorkflowConfigurator\Validator\ProtectedOccupiedPlaceValidator;
+use WorkflowConfigurator\Validator\TransitionPlacesBelongToDefinitionValidator;
+use WorkflowConfigurator\Validator\ValidGuardExpressionValidator;
+use WorkflowConfigurator\Validator\ValidWorkflowDefinitionValidator;
 
 /**
- * Operator-editable workflow graphs: the definition/place/transition entities,
- * their repositories, and the schema seam a consumer needs.
+ * Operator-editable workflow graphs over Symfony Workflow. The operator
+ * configures the graph; behaviour attached to transitions remains code,
+ * supplied by the consumer through the workflow_configurator.task and
+ * workflow_configurator.transition_role tags (both applied automatically to
+ * implementations via #[AutoconfigureTag] on the interfaces).
  *
  * The bundle ships no migrations — after enabling it, run
- * `doctrine:migrations:diff` and review the generated migration. Every config
- * key corresponds to a behaviour that was hardcoded in the original in-app
- * implementation.
+ * `doctrine:migrations:diff` and review the generated migration. The admin
+ * layer (CRUD, diagram, guided transition form) registers only when
+ * EasyAdmin and the Form component are installed; without them the bundle is
+ * a headless workflow store, which is a supported configuration.
  */
 class WorkflowConfiguratorBundle extends AbstractBundle
 {
@@ -47,6 +64,14 @@ class WorkflowConfiguratorBundle extends AbstractBundle
                 ],
             ],
         ]);
+
+        if (interface_exists(AssetMapperInterface::class)) {
+            $builder->prependExtensionConfig('framework', [
+                'asset_mapper' => [
+                    'paths' => [__DIR__.'/../assets' => 'workflow-configurator'],
+                ],
+            ]);
+        }
     }
 
     /**
@@ -64,5 +89,38 @@ class WorkflowConfiguratorBundle extends AbstractBundle
         $services->set(WorkflowDefinitionRepository::class);
         $services->set(WorkflowPlaceRepository::class);
         $services->set(WorkflowTransitionRepository::class);
+
+        // Runtime: registry + the listeners that keep it honest.
+        $services->set(DynamicWorkflowRegistry::class);
+        $services->set(WorkflowCacheInvalidator::class);
+        $services->set(GuardExpressionSubscriber::class);
+        $services->set(TaskDispatchSubscriber::class);
+        $services->set(ReachabilityChecker::class);
+        $services->set(OccupiedPlaceRemovalListener::class);
+
+        // Consumer-supplied behaviour, collected by tag.
+        $services->set(WorkflowTaskMap::class);
+        $services->set(TransitionRoleMap::class);
+
+        // Occupancy is inert until the consumer aliases the interface to an
+        // implementation that counts its own subjects.
+        $services->set(NullPlaceOccupancyChecker::class);
+        $services->alias(PlaceOccupancyCheckerInterface::class, NullPlaceOccupancyChecker::class);
+
+        $services->set(ValidWorkflowDefinitionValidator::class);
+        $services->set(KnownWorkflowTaskValidator::class);
+        $services->set(TransitionPlacesBelongToDefinitionValidator::class);
+        $services->set(ValidGuardExpressionValidator::class);
+        $services->set(ProtectedOccupiedPlaceValidator::class);
+
+        if (class_exists(AbstractType::class)) {
+            $services->set(TransitionMetadataType::class);
+        }
+
+        if (class_exists(AbstractCrudController::class)) {
+            $services->set(WorkflowDefinitionCrudController::class);
+            $services->set(WorkflowPlaceCrudController::class);
+            $services->set(WorkflowTransitionCrudController::class);
+        }
     }
 }

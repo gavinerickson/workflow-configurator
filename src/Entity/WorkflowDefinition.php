@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 use WorkflowConfigurator\Repository\WorkflowDefinitionRepository;
+use WorkflowConfigurator\Validator\ValidWorkflowDefinition;
 use WorkflowConfigurator\WorkflowType;
 
 /**
@@ -16,6 +17,7 @@ use WorkflowConfigurator\WorkflowType;
 #[ORM\Entity(repositoryClass: WorkflowDefinitionRepository::class)]
 #[ORM\Table(name: 'workflow_definition')]
 #[ORM\HasLifecycleCallbacks]
+#[ValidWorkflowDefinition]
 class WorkflowDefinition
 {
     #[ORM\Id]

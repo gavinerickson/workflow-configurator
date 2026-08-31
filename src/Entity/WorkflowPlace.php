@@ -6,6 +6,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
+use WorkflowConfigurator\Validator\ProtectedOccupiedPlace;
 
 /**
  * A place in an operator-defined workflow.
@@ -13,6 +14,7 @@ use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 #[ORM\Entity(repositoryClass: WorkflowPlaceRepository::class)]
 #[ORM\Table(name: 'workflow_place')]
 #[ORM\UniqueConstraint(name: 'uniq_place_per_definition', columns: ['definition_id', 'name'])]
+#[ProtectedOccupiedPlace]
 class WorkflowPlace
 {
     use MetadataJsonTrait;

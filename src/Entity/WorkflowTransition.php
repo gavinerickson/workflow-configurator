@@ -8,6 +8,9 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
+use WorkflowConfigurator\Validator\KnownWorkflowTask;
+use WorkflowConfigurator\Validator\TransitionPlacesBelongToDefinition;
+use WorkflowConfigurator\Validator\ValidGuardExpression;
 
 /**
  * A transition in an operator-defined workflow. Behaviour attaches through
@@ -16,6 +19,7 @@ use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
  */
 #[ORM\Entity(repositoryClass: WorkflowTransitionRepository::class)]
 #[ORM\Table(name: 'workflow_transition')]
+#[TransitionPlacesBelongToDefinition]
 class WorkflowTransition
 {
     #[ORM\Id]
@@ -43,10 +47,12 @@ class WorkflowTransition
     private Collection $tos;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[ValidGuardExpression]
     private ?string $guard = null;
 
     /** @var array<string, mixed> */
     #[ORM\Column(type: Types::JSON)]
+    #[KnownWorkflowTask]
     private array $metadata = [];
 
     public function __construct()

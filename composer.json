@@ -14,21 +14,30 @@
         "doctrine/dbal": "^4.0",
         "doctrine/doctrine-bundle": "^3.2",
         "doctrine/orm": "^3.2",
+        "psr/log": "^3.0",
+        "symfony/cache-contracts": "^3.0",
         "symfony/config": "^7.2 || ^8.0",
         "symfony/dependency-injection": "^7.2 || ^8.0",
+        "symfony/event-dispatcher": "^7.2 || ^8.0",
+        "symfony/expression-language": "^7.2 || ^8.0",
         "symfony/http-kernel": "^7.2 || ^8.0",
-        "symfony/validator": "^7.2 || ^8.0"
+        "symfony/messenger": "^7.2 || ^8.0",
+        "symfony/validator": "^7.2 || ^8.0",
+        "symfony/workflow": "^7.2 || ^8.0"
     },
     "require-dev": {
+        "easycorp/easyadmin-bundle": "^5.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-doctrine": "^2.0",
-        "phpunit/phpunit": "^13.0"
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^13.0",
+        "symfony/form": "^7.2 || ^8.0",
+        "symfony/security-http": "^7.2 || ^8.0"
     },
     "suggest": {
         "easycorp/easyadmin-bundle": "The admin CRUD, Mermaid diagram and guided transition form register only when EasyAdmin is present",
-        "symfony/workflow": "The runtime registry compiles enabled definitions into Workflow/StateMachine objects",
-        "symfony/form": "The guided transition metadata form",
+        "symfony/form": "The guided transition metadata form (registers only when installed)",
         "symfony/asset-mapper": "Ships the dependent from/to selects for the transition form"
     },
     "autoload": {

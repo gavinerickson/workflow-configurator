@@ -82,4 +82,8 @@ jobs:
                   php bin/console cache:clear
                   php bin/console doctrine:schema:create --dump-sql > prefixed.sql
                   grep '^CREATE TABLE' prefixed.sql
-                  test "$(grep -c '^CREATE TABLE wc_' prefixed.sql)" = 5
+                  if [ "$(grep -c '^CREATE TABLE wc_' prefixed.sql)" != 5 ]; then
+                      echo "::error::tables: $(grep '^CREATE TABLE' prefixed.sql | cut -d'(' -f1 | tr '\n' ';')"
+                      echo "::error::config: $(php bin/console debug:config workflow_configurator 2>&1 | tr '\n' ';')"
+                      exit 1
+                  fi

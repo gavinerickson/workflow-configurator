@@ -80,4 +80,6 @@ jobs:
               run: |
                   printf 'workflow_configurator:\n    table_prefix: wc_\n' > config/packages/workflow_configurator.yaml
                   php bin/console cache:clear
-                  test "$(php bin/console doctrine:schema:create --dump-sql | grep -c '^CREATE TABLE wc_')" = 5
+                  php bin/console doctrine:schema:create --dump-sql > prefixed.sql
+                  grep '^CREATE TABLE' prefixed.sql
+                  test "$(grep -c '^CREATE TABLE wc_' prefixed.sql)" = 5

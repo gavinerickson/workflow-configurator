@@ -67,7 +67,8 @@ jobs:
             - name: The documented migrations:diff step generates the migration
               working-directory: consumer
               run: |
-                  php bin/console doctrine:database:create
+                  # No doctrine:database:create — sqlite has no CREATE DATABASE;
+                  # the file appears on first connection.
                   php bin/console doctrine:migrations:diff --no-interaction
                   test "$(grep -hc 'CREATE TABLE workflow_' migrations/Version*.php)" = 5
 

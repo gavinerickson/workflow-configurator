@@ -1,0 +1,11 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    ignoreErrors:
+        # Maker-style entities: the owning side is null until attached, while
+        # the column is NOT NULL — enforced by the object graph, not the type.
+        -
+            identifier: doctrine.associationType
+            path: src/Entity/

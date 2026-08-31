@@ -7,6 +7,8 @@ use Doctrine\ORM\Tools\SchemaTool;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
@@ -23,6 +25,8 @@ use WorkflowConfigurator\Tests\AdminTestKernel;
  * diagram. This is the layer the bundle's unit suite cannot see — the
  * always-false hasExtension guard shipped green until a consumer hit it.
  */
+#[Group('rac')]
+#[Verifies('REQ-007')]
 class AdminSmokeTest extends WebTestCase
 {
     private KernelBrowser $client;

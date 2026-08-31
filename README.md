@@ -86,4 +86,11 @@ code — yours. Each seam is an interface the bundle collects or resolves:
 composer install
 vendor/bin/phpunit
 vendor/bin/phpstan analyse
+composer rac          # the requirements-as-code compliance gate
 ```
+
+The package's contract is written down: `SOW/StatementOfWork.md` states what
+a consumer is guaranteed, `tests/Requirements/` registers each guarantee as a
+requirement with `#[Verifies]` evidence in the suite, and `composer rac`
+(also a CI step) is the gate that the contract holds. Red means drift, never
+"not built yet".

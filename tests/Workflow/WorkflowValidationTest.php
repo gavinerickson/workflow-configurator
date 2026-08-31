@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests\Workflow;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use WorkflowConfigurator\Entity\WorkflowDefinition;
 use WorkflowConfigurator\Entity\WorkflowPlace;
 use WorkflowConfigurator\Entity\WorkflowTransition;
@@ -15,6 +17,9 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 /**
  * specs/DynamicWorkflows.md §7 criteria 6 and 7 (§6.2 rules).
  */
+#[Group('rac')]
+#[Verifies('REQ-005')]
+#[Verifies('REQ-003')]
 class WorkflowValidationTest extends WorkflowTestCase
 {
     private ValidatorInterface $validator;

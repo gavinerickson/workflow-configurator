@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests\Workflow;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use WorkflowConfigurator\Tests\Fixtures\TestSubject;
 use WorkflowConfigurator\DynamicWorkflowRegistry;
 use WorkflowConfigurator\WorkflowNotFoundException;
@@ -12,6 +14,8 @@ use Symfony\Component\Workflow\Event\Event;
 /**
  * specs/DynamicWorkflows.md §7 criteria 1, 2, 3, 8.
  */
+#[Group('rac')]
+#[Verifies('REQ-001')]
 class DynamicWorkflowRegistryTest extends WorkflowTestCase
 {
     private DynamicWorkflowRegistry $registry;

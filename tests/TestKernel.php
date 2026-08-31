@@ -33,6 +33,7 @@ class TestKernel extends Kernel
             new FrameworkBundle(),
             new DoctrineBundle(),
             new WorkflowConfiguratorBundle(),
+            new \RequirementsAsCode\RequirementsAsCodeBundle(),
         ];
     }
 
@@ -53,6 +54,22 @@ class TestKernel extends Kernel
                     'stamping' => 'in-memory://',
                 ],
             ],
+        ]);
+
+        $container->extension('requirements_as_code', [
+            // Requirements live with the tests, as in RAC's own repo — they
+            // are the package's dev-side compliance register, not shipped API.
+            'requirements' => [
+                'dir' => 'tests/Requirements',
+                'namespace' => 'WorkflowConfigurator\Tests\Requirements',
+            ],
+            'scan' => [
+                // 'source' is where RequirementDefinition classes are scanned
+                // for — here that is the dev-side register, not shipped src/.
+                'source' => ['dir' => 'tests/Requirements', 'namespace' => 'WorkflowConfigurator\Tests\Requirements\\'],
+                'tests' => ['dir' => 'tests', 'namespace' => 'WorkflowConfigurator\Tests\\'],
+            ],
+            'dashboard' => ['enabled' => false],
         ]);
 
         $container->extension('doctrine', [

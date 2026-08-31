@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
@@ -15,6 +17,8 @@ use WorkflowConfigurator\WorkflowConfiguratorBundle;
  * hasExtension() is false for every other bundle — the regression this
  * pins was CRUD controllers silently never registering.
  */
+#[Group('rac')]
+#[Verifies('REQ-007')]
 class BundleExtensionTest extends TestCase
 {
     /**

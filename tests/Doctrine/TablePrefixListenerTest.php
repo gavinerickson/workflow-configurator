@@ -6,10 +6,14 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Mapping\ManyToManyOwningSideMapping;
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use PHPUnit\Framework\TestCase;
 use WorkflowConfigurator\Doctrine\TablePrefixListener;
 use WorkflowConfigurator\Entity\WorkflowTransition;
 
+#[Group('rac')]
+#[Verifies('REQ-008')]
 class TablePrefixListenerTest extends TestCase
 {
     public function testDefaultPrefixIsANoOp(): void

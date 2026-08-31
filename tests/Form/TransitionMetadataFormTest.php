@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests\Form;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormInterface;
 use WorkflowConfigurator\Form\TransitionMetadataType;
@@ -13,6 +15,9 @@ use WorkflowConfigurator\Tests\Workflow\WorkflowTestCase;
  * manage. Adapted from the origin suite onto the bundle's fixture tasks and
  * role vocabularies.
  */
+#[Group('rac')]
+#[Verifies('REQ-006')]
+#[Verifies('REQ-004')]
 class TransitionMetadataFormTest extends WorkflowTestCase
 {
     /**

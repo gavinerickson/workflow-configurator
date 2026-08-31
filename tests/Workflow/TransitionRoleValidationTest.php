@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests\Workflow;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use WorkflowConfigurator\Entity\WorkflowPlace;
@@ -13,6 +15,8 @@ use WorkflowConfigurator\Entity\WorkflowTransition;
  * derived from tagged TransitionRoleInterface providers, never from
  * role-specific code.
  */
+#[Group('rac')]
+#[Verifies('REQ-004')]
 class TransitionRoleValidationTest extends WorkflowTestCase
 {
     private ValidatorInterface $validator;

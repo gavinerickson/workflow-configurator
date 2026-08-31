@@ -6,12 +6,16 @@ use WorkflowConfigurator\Task\Args\ArgDefinition;
 use WorkflowConfigurator\Task\Args\ArgsSchema;
 use WorkflowConfigurator\Task\Args\ArgsSchemaValidator;
 use WorkflowConfigurator\Task\Args\ArgType;
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use PHPUnit\Framework\TestCase;
 
 /**
  * specs/DynamicWorkflows.md §9.2 (one generic enforcement of task parameter
  * schemas) and §9.4 rule 2 (unknown args keys are rejected).
  */
+#[Group('rac')]
+#[Verifies('REQ-003')]
 class ArgsSchemaValidatorTest extends TestCase
 {
     private function schema(): ArgsSchema

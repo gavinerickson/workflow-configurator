@@ -27,6 +27,9 @@ jobs:
             - name: PHPStan
               run: vendor/bin/phpstan analyse --no-progress
 
+            - name: Requirements-as-Code gate
+              run: composer rac
+
     # The install story, proven against a genuinely fresh consumer: Flex
     # registration, headless container lint, the five-table schema, the
     # documented migrations:diff step, and the table_prefix override.

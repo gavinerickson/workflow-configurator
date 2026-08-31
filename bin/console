@@ -1,0 +1,14 @@
+#!/usr/bin/env php
+<?php
+
+// Console entrypoint over the test kernel — a bundle has no app of its own.
+// Exists for the requirements-as-code commands (composer rac) and doctrine
+// debugging against the test schema.
+
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+use WorkflowConfigurator\Tests\TestKernel;
+
+require dirname(__DIR__).'/vendor/autoload.php';
+
+$kernel = new TestKernel('test', true);
+exit((new Application($kernel))->run());

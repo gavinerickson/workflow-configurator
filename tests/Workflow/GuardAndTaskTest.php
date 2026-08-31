@@ -2,6 +2,8 @@
 
 namespace WorkflowConfigurator\Tests\Workflow;
 
+use PHPUnit\Framework\Attributes\Group;
+use RequirementsAsCode\Attribute\Verifies;
 use WorkflowConfigurator\Tests\Fixtures\TestStampMessage;
 use WorkflowConfigurator\Tests\Fixtures\TestSubject;
 use WorkflowConfigurator\DynamicWorkflowRegistry;
@@ -10,6 +12,9 @@ use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
 /**
  * specs/DynamicWorkflows.md §7 criteria 4 and 5.
  */
+#[Group('rac')]
+#[Verifies('REQ-002')]
+#[Verifies('REQ-003')]
 class GuardAndTaskTest extends WorkflowTestCase
 {
     private DynamicWorkflowRegistry $registry;

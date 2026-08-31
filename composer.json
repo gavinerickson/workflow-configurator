@@ -25,8 +25,16 @@
         "symfony/validator": "^7.2 || ^8.0",
         "symfony/workflow": "^7.2 || ^8.0"
     },
+    "repositories": [
+        {
+            "name": "rac",
+            "type": "vcs",
+            "url": "https://github.com/gavinerickson/requirements-as-code"
+        }
+    ],
     "require-dev": {
         "easycorp/easyadmin-bundle": "^5.0",
+        "gavinerickson/requirements-as-code": "dev-master",
         "symfony/asset": "^7.2 || ^8.0",
         "symfony/browser-kit": "^7.2 || ^8.0",
         "symfony/css-selector": "^7.2 || ^8.0",
@@ -63,5 +71,15 @@
             "phpstan/extension-installer": true
         },
         "sort-packages": true
+    },
+    "scripts": {
+        "rac": [
+            "rm -rf var/phpunit-junit.xml",
+            "vendor/bin/phpunit --group rac --log-junit var/phpunit-junit.xml || true",
+            "@php bin/console requirements:compliance --junit=var/phpunit-junit.xml"
+        ]
+    },
+    "scripts-descriptions": {
+        "rac": "Requirements-as-Code pipeline: #[Group('rac')] PHPUnit tests with JUnit, then the compliance matrix (exit code = the gate)"
     }
 }

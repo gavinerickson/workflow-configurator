@@ -1,0 +1,7 @@
+{# Workflows admin: the workflow context bar above EasyAdmin's own new page. #}
+{% extends '@EasyAdmin/crud/new.html.twig' %}
+
+{% block content_header_wrapper %}
+    {{ include('@WorkflowConfigurator/crud/_context_bar.html.twig') }}
+    {{ parent() }}
+{% endblock %}

@@ -68,6 +68,17 @@ only the selected task's panel reaches `args`; keys and values the form cannot
 represent surface in the advanced field and round-trip unchanged; keys owned
 by dedicated inputs are refused there.
 
+Its inputs are grouped by the question each answers — what runs on completion,
+what happens if the document rests, which outside event applies the transition,
+and what the form does not manage — and every input shows the label it
+declares. Operator-facing strings a consumer supplies (task-schema labels and
+help, role labels and help) are **prose, not markup**: they are escaped on
+their way into the form, so a task documenting a pattern in angle brackets
+renders those characters rather than injecting an element. This matters more
+than it sounds: EasyAdmin renders help through Twig's `raw` filter, and a tag
+that takes content swallows the remainder of the form, which then neither
+renders nor submits.
+
 ### 2.8 The admin layer is optional and consumer-wired
 
 The CRUD controllers, diagram and guided form register only when the EasyAdmin
@@ -75,6 +86,15 @@ bundle is registered in the consumer's kernel; without it the package is a
 headless workflow store whose container compiles cleanly. With it, a consumer
 wiring only its dashboard menu gets create/edit through real forms, the guided
 transition editor, and the Mermaid diagram. Access control is the consumer's.
+
+The three screens share one **workflow context**: the graph an operator picks
+is remembered for the session and carried between definitions, places and
+transitions, so the indexes read as one workflow's pieces rather than three
+flat cross-installation lists, and a new place or transition starts in the
+workflow it was created from. Clearing the context restores the unfiltered
+lists. This is navigation only — §2.6 remains the authority on which places a
+transition may join — and it needs no asset build, so a consumer wiring only
+its dashboard menu gets it.
 
 ### 2.9 The schema is five tables, prefix-configurable
 

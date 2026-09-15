@@ -27,8 +27,11 @@ const initTaskPanels = () => {
     const toggle = () => {
         for (const panel of panels) {
             const active = '' !== task.value && panel.dataset.taskPanel === task.value;
-            const row = panel.closest('.form-group') ?? panel;
-            row.style.display = active ? '' : 'none';
+            // The panel element is its own row: templates/form/transition_metadata.html.twig
+            // puts data-task-panel on the wrapper it draws. Walking up to a
+            // .form-group would find the row of the whole metadata field and
+            // hide every section with it.
+            panel.style.display = active ? '' : 'none';
             for (const input of panel.querySelectorAll('input, select, textarea')) {
                 input.disabled = !active;
             }

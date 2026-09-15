@@ -72,6 +72,13 @@ code — yours. Each seam is an interface the bundle collects or resolves:
   with the extraction).
 - `WorkflowDefinition::$markingProperty` names the subject property holding
   this workflow's marking, so one subject can run several workflows.
+- The three admin screens share a **workflow context** (session-backed): pick a
+  graph once and definitions, places and transitions all stay on it, with
+  "all workflows" to clear it. Navigation only — save-time validation is
+  unchanged.
+- Task-schema and role strings are **prose, not markup**. The guided form
+  escapes them, because EasyAdmin renders a field's help unescaped and a tag
+  that takes content truncates the form.
 - Transition **behaviour is metadata**: `task`, `next`, `deadline`, guard
   expressions and role keys are JSON on the transition; the contracts that
   interpret them (task services, role providers, occupancy checker) are

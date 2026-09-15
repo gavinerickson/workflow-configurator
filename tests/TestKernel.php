@@ -10,6 +10,7 @@ use Symfony\Component\HttpKernel\Kernel;
 use WorkflowConfigurator\PlaceOccupancyCheckerInterface;
 use WorkflowConfigurator\Tests\Fixtures\CountingOccupancyChecker;
 use WorkflowConfigurator\Tests\Fixtures\FixtureLifecycleRole;
+use WorkflowConfigurator\Tests\Fixtures\FixtureMarkupHelpTask;
 use WorkflowConfigurator\Tests\Fixtures\FixtureNoArgsTask;
 use WorkflowConfigurator\Tests\Fixtures\FixtureReviewRole;
 use WorkflowConfigurator\Tests\Fixtures\FixtureRotateTask;
@@ -88,6 +89,7 @@ class TestKernel extends Kernel
         $services->set(FixtureRotateTask::class);
         $services->set(FixtureStamperTask::class);
         $services->set(FixtureNoArgsTask::class);
+        $services->set(FixtureMarkupHelpTask::class);
         $services->set(FixtureReviewRole::class);
         $services->set(FixtureLifecycleRole::class);
 

@@ -23,6 +23,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Workflow\Dumper\MermaidDumper;
+use WorkflowConfigurator\Admin\WorkflowAdminContext;
 
 /**
  * specs/DynamicWorkflows.md §6.1.
@@ -49,7 +50,11 @@ class WorkflowDefinitionCrudController extends AbstractCrudController
         return $crud
             ->setEntityLabelInSingular('Workflow definition')
             ->setEntityLabelInPlural('Workflow definitions')
-            ->setDefaultSort(['name' => 'ASC']);
+            ->setDefaultSort(['name' => 'ASC'])
+            ->overrideTemplate('crud/index', '@WorkflowConfigurator/crud/index.html.twig')
+            ->overrideTemplate('crud/new', '@WorkflowConfigurator/crud/new.html.twig')
+            ->overrideTemplate('crud/edit', '@WorkflowConfigurator/crud/edit.html.twig')
+            ->overrideTemplate('crud/detail', '@WorkflowConfigurator/crud/detail.html.twig');
     }
 
     public function configureActions(Actions $actions): Actions
@@ -57,8 +62,10 @@ class WorkflowDefinitionCrudController extends AbstractCrudController
         $diagram = Action::new('renderDiagram', 'Diagram', 'fa fa-diagram-project')
             ->linkToCrudAction('renderDiagram');
 
-        // Straight into this workflow's pieces: the Places/Transitions
-        // indexes pre-filtered to the definition (§6.1).
+        // Straight into this workflow's pieces. Following one of these also
+        // makes the definition the workflow in context, so the tabs above the
+        // page then carry the operator between its places and transitions
+        // without re-picking it (WorkflowAdminContext).
         $places = Action::new('filteredPlaces', 'Places', 'fa fa-circle-dot')
             ->linkToUrl(fn (WorkflowDefinition $definition): string => $this->filteredIndexUrl(WorkflowPlaceCrudController::class, $definition));
         $transitions = Action::new('filteredTransitions', 'Transitions', 'fa fa-arrow-right')
@@ -82,7 +89,7 @@ class WorkflowDefinitionCrudController extends AbstractCrudController
         return $this->adminUrlGenerator
             ->setController($crudController)
             ->setAction(Action::INDEX)
-            ->set('filters', ['definition' => ['comparison' => '=', 'value' => (string) $definition->getId()]])
+            ->set(WorkflowAdminContext::QUERY_PARAM, (string) $definition->getId())
             ->generateUrl();
     }
 

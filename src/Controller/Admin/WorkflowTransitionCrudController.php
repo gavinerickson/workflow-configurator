@@ -20,13 +20,12 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\FormField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use WorkflowConfigurator\Admin\TransitionSummary;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
-use WorkflowConfigurator\Deadline;
 use WorkflowConfigurator\Entity\WorkflowPlace;
 use WorkflowConfigurator\Entity\WorkflowTransition;
 use WorkflowConfigurator\Form\TransitionMetadataType;
 use WorkflowConfigurator\ReachabilityChecker;
-use WorkflowConfigurator\TransitionRoleMap;
 
 /**
  * specs/DynamicWorkflows.md §6.1.
@@ -39,7 +38,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
     public function __construct(
         private readonly ReachabilityChecker $reachabilityChecker,
         private readonly WorkflowAdminContext $workflowContext,
-        private readonly TransitionRoleMap $roles,
+        private readonly TransitionSummary $summary,
     ) {
     }
 
@@ -170,60 +169,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         yield ArrayField::new('froms', 'From');
         yield ArrayField::new('tos', 'To');
         yield TextField::new('task', 'Behaviour')
-            ->formatValue(fn (mixed $value, WorkflowTransition $transition): string => $this->describeBehaviour($transition));
-    }
-
-    /**
-     * A one-line reading of everything the transition carries beyond its
-     * route: the task and its follow-up, the deadline, and the role
-     * vocabularies that apply it.
-     */
-    private function describeBehaviour(WorkflowTransition $transition): string
-    {
-        $metadata = $transition->getMetadata();
-        $parts = [];
-
-        if (null !== $task = $transition->getTask()) {
-            $next = $metadata['next'] ?? null;
-            $parts[] = \is_string($next) && '' !== $next
-                ? \sprintf('%s → %s', $task, $next)
-                : $task;
-        }
-
-        $deadline = Deadline::fromTransition($transition);
-        if (null !== $deadline) {
-            $parts[] = \sprintf(
-                'after %s → %s',
-                self::describeInterval($deadline->after),
-                $deadline->selfFiring ? 'itself' : $deadline->transition,
-            );
-        }
-
-        foreach ($this->roles->keys() as $roleKey) {
-            $value = $metadata[$roleKey] ?? null;
-            if (\is_string($value) && '' !== $value) {
-                $parts[] = \sprintf('%s: %s', $roleKey, $value);
-            }
-        }
-
-        return implode(' · ', $parts);
-    }
-
-    private static function describeInterval(\DateInterval $interval): string
-    {
-        $units = [
-            'y' => $interval->y, 'm' => $interval->m, 'd' => $interval->d,
-            'h' => $interval->h, 'min' => $interval->i, 's' => $interval->s,
-        ];
-
-        $said = [];
-        foreach ($units as $suffix => $amount) {
-            if ($amount > 0) {
-                $said[] = $amount.$suffix;
-            }
-        }
-
-        return [] === $said ? '0s' : implode(' ', $said);
+            ->formatValue(fn (mixed $value, WorkflowTransition $transition): string => $this->summary->describe($transition));
     }
 
     public function persistEntity(EntityManagerInterface $entityManager, $entityInstance): void

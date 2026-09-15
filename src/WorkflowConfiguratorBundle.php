@@ -9,7 +9,9 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use WorkflowConfigurator\Admin\TransitionSummary;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
+use WorkflowConfigurator\Admin\WorkflowHubView;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
@@ -141,6 +143,8 @@ class WorkflowConfiguratorBundle extends AbstractBundle
             // The workflow an operator is working on, carried between the
             // three screens, and the bar that renders it.
             $services->set(WorkflowAdminContext::class);
+            $services->set(TransitionSummary::class);
+            $services->set(WorkflowHubView::class);
             $services->set(WorkflowAdminExtension::class)->tag('twig.extension');
         }
     }

@@ -87,6 +87,12 @@ headless workflow store whose container compiles cleanly. With it, a consumer
 wiring only its dashboard menu gets create/edit through real forms, the guided
 transition editor, and the Mermaid diagram. Access control is the consumer's.
 
+A definition's detail page is the workflow's home: the graph drawn in place,
+its places with what occupies each, and its transitions with what each carries,
+with a way to add either. A definition with no places says so rather than
+drawing an empty frame, and a graph the registry cannot build does not take the
+page down — this is the page an operator builds a workflow from.
+
 The three screens share one **workflow context**: the graph an operator picks
 is remembered for the session and carried between definitions, places and
 transitions, so the indexes read as one workflow's pieces rather than three

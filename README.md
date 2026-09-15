@@ -72,6 +72,8 @@ code — yours. Each seam is an interface the bundle collects or resolves:
   with the extraction).
 - `WorkflowDefinition::$markingProperty` names the subject property holding
   this workflow's marking, so one subject can run several workflows.
+- A definition's **detail page is the workflow's home**: diagram, places with
+  occupancy, and transitions with what each carries, all in one read.
 - The three admin screens share a **workflow context** (session-backed): pick a
   graph once and definitions, places and transitions all stay on it, with
   "all workflows" to clear it. Navigation only — save-time validation is

@@ -1,0 +1,109 @@
+{#
+   Groups the guided transition-metadata inputs under the questions an operator
+   is actually answering, and renders their labels.
+
+   Why the rows are built here rather than left to `form_row`: EasyAdmin styles
+   a JSON column as an ArrayField, and its theme hides the label of every field
+   nested inside one —
+
+       .form-group.field-array .form-widget .form-group label { display: none }
+
+   — so Task, and every parameter of the selected task, render as bare
+   unlabelled controls. Building the rows outside that selector's reach keeps
+   the labels the form already declares.
+
+   Presentation only: the data mapper is untouched, so the lossless round-trip
+   (SOW §2.7) is unaffected. Each task panel's wrapper carries `data-task-panel`
+   for assets/workflow_transition_form.js, which shows the selected task's panel
+   and disables the rest.
+#}
+
+{% block workflow_transition_metadata_widget %}
+    {% set wc_reserved = ['task', 'next', 'deadline_after', 'deadline_transition', 'extra'] %}
+    {% set wc_panels = form|filter(child => child.vars.name starts with 'args_') %}
+    {% set wc_roles = form|filter(child => child.vars.name not in wc_reserved and not (child.vars.name starts with 'args_')) %}
+
+
+    {# Ships with the theme so the admin layer needs no asset build (SOW §2.8).
+       Values come from EasyAdmin's own custom properties, so it follows the
+       backend's light and dark themes rather than restating colours. #}
+    <style>
+        .wc-metadata { display: flex; flex-direction: column; gap: 4px; }
+        .wc-section { border-top: 1px solid var(--border-secondary-color, #cbd5e1); padding: 18px 0 4px; }
+        .wc-metadata .wc-section:first-child { border-top: 0; padding-top: 4px; }
+        .wc-section-title { font-size: var(--font-size-lg, 16px); font-weight: 600; color: var(--text-primary-color, #1e293b); margin: 0 0 4px; }
+        .wc-section-title span { font-size: var(--font-size-sm, 13px); font-weight: 400; color: var(--text-secondary-color, #64748b); margin-inline-start: 6px; }
+        .wc-section-lede { font-size: var(--font-size-sm, 13px); color: var(--text-secondary-color, #64748b); margin: 0 0 12px; }
+        .wc-field { margin-block: 12px; }
+        .wc-label { display: block; font-weight: 500; color: var(--form-label-color, #1e293b); margin-block-end: 4px; }
+        .wc-required { color: var(--form-label-required-color, #dc2626); margin-inline-start: 2px; }
+        .wc-help { display: block; font-size: var(--font-size-sm, 13px); color: var(--form-help-color, #475569); margin-block-start: 5px; }
+        .wc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+        .wc-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        @media (max-width: 767px) { .wc-grid, .wc-grid-3 { grid-template-columns: minmax(0, 1fr); } }
+        .wc-panel { border-inline-start: 3px solid var(--border-secondary-color, #cbd5e1); padding: 12px 0 2px 16px; margin-block: 8px; }
+        .wc-panel-title { font-size: var(--font-size-xs, 12px); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary-color, #64748b); }
+        .wc-panel-help { font-size: var(--font-size-sm, 13px); color: var(--text-secondary-color, #64748b); margin: 6px 0 0; }
+    </style>
+
+    <div class="wc-metadata">
+        <section class="wc-section">
+            <h3 class="wc-section-title">On completion <span>what happens once the document has moved</span></h3>
+
+            {% set wc_child = form.task %}{{ block('wc_row') }}
+
+            {% for wc_panel in wc_panels %}
+                <div class="wc-panel" data-task-panel="{{ wc_panel.vars.name|slice(5) }}">
+                    <div class="wc-panel-title">{{ wc_panel.vars.label }}</div>
+                    {% if wc_panel.vars.help %}
+                        <p class="wc-panel-help">{{ wc_panel.vars.help|raw }}</p>
+                    {% endif %}
+                    <div class="wc-grid">
+                        {% for wc_child in wc_panel %}{{ block('wc_row') }}{% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            {% set wc_child = form.next %}{{ block('wc_row') }}
+        </section>
+
+        <section class="wc-section">
+            <h3 class="wc-section-title">Deadline <span>what happens if the document just rests there</span></h3>
+            <div class="wc-grid">
+                {% set wc_child = form.deadline_after %}{{ block('wc_row') }}
+                {% set wc_child = form.deadline_transition %}{{ block('wc_row') }}
+            </div>
+        </section>
+
+        {% if wc_roles|length > 0 %}
+            <section class="wc-section">
+                <h3 class="wc-section-title">Applied by <span>which outside event applies this transition</span></h3>
+                <p class="wc-section-lede">Most transitions have none, and a transition normally plays one role.</p>
+                <div class="wc-grid wc-grid-3">
+                    {% for wc_child in wc_roles %}{{ block('wc_row') }}{% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="wc-section">
+            <h3 class="wc-section-title">Advanced <span>keys the guided inputs do not manage</span></h3>
+            {% set wc_child = form.extra %}{{ block('wc_row') }}
+        </section>
+    </div>
+{% endblock workflow_transition_metadata_widget %}
+
+{% block wc_row %}
+    <div class="wc-field">
+        {% if wc_child.vars.label is not same as(false) %}
+            <label class="wc-label" for="{{ wc_child.vars.id }}">
+                {{- wc_child.vars.label|default(wc_child.vars.name) -}}
+                {%- if wc_child.vars.required %}<span class="wc-required">*</span>{% endif -%}
+            </label>
+        {% endif %}
+        {{ form_widget(wc_child) }}
+        {% if wc_child.vars.help %}
+            <small class="wc-help">{{ wc_child.vars.help|raw }}</small>
+        {% endif %}
+        {{ form_errors(wc_child) }}
+    </div>
+{% endblock wc_row %}

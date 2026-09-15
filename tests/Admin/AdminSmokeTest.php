@@ -11,7 +11,9 @@ use PHPUnit\Framework\Attributes\Group;
 use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Core\User\InMemoryUser;
+use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
+use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
 use WorkflowConfigurator\Entity\WorkflowDefinition;
 use WorkflowConfigurator\Entity\WorkflowPlace;
@@ -55,6 +57,18 @@ class AdminSmokeTest extends WebTestCase
         return self::getContainer()->get(AdminUrlGenerator::class)
             ->setController($controller)
             ->setAction($action)
+            ->generateUrl();
+    }
+
+    /**
+     * The same URL with the workflow context set — what the picker links to.
+     */
+    private function adminUrlInContext(string $controller, string $action, string $context): string
+    {
+        return self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController($controller)
+            ->setAction($action)
+            ->set(WorkflowAdminContext::QUERY_PARAM, $context)
             ->generateUrl();
     }
 
@@ -118,6 +132,111 @@ class AdminSmokeTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertGreaterThan(0, $crawler->filter('pre.mermaid')->count());
         self::assertStringContainsString('received', $crawler->filter('pre.mermaid')->text());
+    }
+
+    public function testTaskHelpIsRenderedAsTextSoItCannotTruncateTheForm(): void
+    {
+        $this->seedGraph();
+
+        $crawler = $this->client->request('GET', $this->adminUrl(WorkflowTransitionCrudController::class, Action::NEW));
+        self::assertResponseIsSuccessful();
+        $html = $crawler->html();
+
+        // The task documents "<template>_<n>"; that is prose about a naming
+        // pattern, and must reach the page as characters.
+        self::assertStringContainsString('&lt;template&gt;_&lt;n&gt;', $html);
+        self::assertStringNotContainsString('<template>', $html, 'Help text opened a real element.');
+
+        // Everything the browser would have lost inside it is still here.
+        foreach (['[metadata][next]', '[metadata][deadline_after]', '[metadata][deadline_transition]', '[metadata][extra]'] as $name) {
+            self::assertStringContainsString($name, $html, $name.' did not survive the help text.');
+        }
+        self::assertGreaterThan(0, $crawler->filter('[data-task-panel="rotate"]')->count());
+    }
+
+    public function testEveryGuidedInputKeepsItsLabel(): void
+    {
+        $this->seedGraph();
+
+        $crawler = $this->client->request('GET', $this->adminUrl(WorkflowTransitionCrudController::class, Action::NEW));
+        self::assertResponseIsSuccessful();
+
+        // EasyAdmin hides labels nested inside an ArrayField's widget, which
+        // is what a JSON column is styled as; the guided editor draws its own
+        // rows so the labels it declares are the labels an operator sees.
+        $labels = $crawler->filter('.wc-field > label.wc-label')->each(
+            static fn ($node): string => trim($node->text())
+        );
+
+        foreach (['Task', 'Next transition', 'Additional metadata (advanced)'] as $expected) {
+            self::assertContains($expected, $labels, $expected.' has no visible label.');
+        }
+
+        // Including the parameters of a task panel.
+        self::assertContains('Degrees', $labels);
+    }
+
+    public function testTheSelectedWorkflowIsRememberedBetweenScreens(): void
+    {
+        $this->seedGraph();
+        $other = $this->seedSecondGraph();
+
+        // Picking a workflow on one screen...
+        $crawler = $this->client->request('GET', $this->adminUrlInContext(WorkflowPlaceCrudController::class, Action::INDEX, (string) $other->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('filed', $crawler->filter('table')->text());
+        self::assertStringNotContainsString('received', $crawler->filter('table')->text());
+
+        // ...still applies on the next screen, with nothing in the URL.
+        $crawler = $this->client->request('GET', $this->adminUrl(WorkflowTransitionCrudController::class, Action::INDEX));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('file_history', $crawler->filter('table')->text());
+        self::assertStringNotContainsString('stamp', $crawler->filter('table')->text());
+    }
+
+    public function testANewRecordStartsInTheWorkflowInContext(): void
+    {
+        $this->seedGraph();
+        $other = $this->seedSecondGraph();
+
+        $this->client->request('GET', $this->adminUrlInContext(WorkflowPlaceCrudController::class, Action::INDEX, (string) $other->getId()));
+
+        $crawler = $this->client->request('GET', $this->adminUrl(WorkflowTransitionCrudController::class, Action::NEW));
+        self::assertResponseIsSuccessful();
+
+        $selected = $crawler->filter('select[name="WorkflowTransition[definition]"] option[selected]');
+        self::assertSame(1, $selected->count(), 'The definition should be pre-set from the context.');
+        self::assertSame((string) $other->getId(), $selected->attr('value'));
+    }
+
+    public function testTheContextIsCleared(): void
+    {
+        $this->seedGraph();
+        $other = $this->seedSecondGraph();
+
+        $this->client->request('GET', $this->adminUrlInContext(WorkflowTransitionCrudController::class, Action::INDEX, (string) $other->getId()));
+
+        $crawler = $this->client->request('GET', $this->adminUrlInContext(WorkflowTransitionCrudController::class, Action::INDEX, WorkflowAdminContext::ALL));
+        self::assertResponseIsSuccessful();
+
+        $table = $crawler->filter('table')->text();
+        self::assertStringContainsString('stamp', $table);
+        self::assertStringContainsString('file_history', $table);
+    }
+
+    private function seedSecondGraph(): WorkflowDefinition
+    {
+        $definition = new WorkflowDefinition()->setName('second')->setLabel('Second');
+        $printed = new WorkflowPlace()->setName('printed')->setLabel('Printed');
+        $filed = new WorkflowPlace()->setName('filed')->setLabel('Filed');
+        $definition->addPlace($printed)->addPlace($filed);
+        $definition->setInitialPlace($printed);
+        $definition->addTransition(new WorkflowTransition()->setName('file_history')->addFrom($printed)->addTo($filed));
+        $definition->setEnabled(true);
+        $this->entityManager->persist($definition);
+        $this->entityManager->flush();
+
+        return $definition;
     }
 
     private function seedGraph(): void

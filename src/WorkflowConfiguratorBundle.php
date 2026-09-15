@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
@@ -18,6 +19,7 @@ use WorkflowConfigurator\Repository\WorkflowDefinitionRepository;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
 use WorkflowConfigurator\Task\WorkflowTaskMap;
+use WorkflowConfigurator\Twig\WorkflowAdminExtension;
 use WorkflowConfigurator\Validator\KnownWorkflowTaskValidator;
 use WorkflowConfigurator\Validator\ProtectedOccupiedPlaceValidator;
 use WorkflowConfigurator\Validator\TransitionPlacesBelongToDefinitionValidator;
@@ -135,6 +137,11 @@ class WorkflowConfiguratorBundle extends AbstractBundle
             $services->set(WorkflowDefinitionCrudController::class);
             $services->set(WorkflowPlaceCrudController::class);
             $services->set(WorkflowTransitionCrudController::class);
+
+            // The workflow an operator is working on, carried between the
+            // three screens, and the bar that renders it.
+            $services->set(WorkflowAdminContext::class);
+            $services->set(WorkflowAdminExtension::class)->tag('twig.extension');
         }
     }
 }

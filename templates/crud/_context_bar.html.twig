@@ -1,0 +1,67 @@
+{#
+   The workflow context: which graph you are working on, and the way into its
+   pieces. Rendered above every Workflows admin page.
+
+   Built from links inside a <details> disclosure rather than a <select> with a
+   change handler, so it needs no JavaScript and no inline script — the bundle
+   cannot assume a consumer's asset pipeline or content-security policy
+   (SOW §2.8).
+#}
+{% set bar = workflow_admin_bar(ea.crud.controllerFqcn|default(null)) %}
+
+<style>
+    .wc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block-end: 8px; }
+    .wc-bar-label { font-size: var(--font-size-xs, 12px); font-weight: 500; text-transform: uppercase; color: var(--text-tertiary-color, #94a3b8); }
+    .wc-picker { position: relative; }
+    .wc-picker > summary { display: flex; align-items: center; gap: 8px; min-width: 260px; height: 32px; padding-inline: 10px; border: 1px solid var(--form-input-border-color, #cbd5e1); border-radius: var(--border-radius, 4px); background: var(--form-control-bg, #fff); color: var(--text-primary-color, #1e293b); font-weight: 500; cursor: pointer; list-style: none; }
+    .wc-picker > summary::-webkit-details-marker { display: none; }
+    .wc-picker > summary::after { content: ""; margin-inline-start: auto; width: 0; height: 0; border-inline: 4px solid transparent; border-block-start: 5px solid var(--text-secondary-color, #64748b); }
+    .wc-picker-menu { position: absolute; z-index: 20; inset-inline-start: 0; margin-block-start: 4px; min-width: 320px; max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--content-panel-bg, #fff); border: 1px solid var(--border-secondary-color, #cbd5e1); border-radius: var(--border-radius, 4px); box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(15, 23, 43, .1)); }
+    .wc-picker-menu a { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: var(--border-radius, 4px); color: var(--text-primary-color, #1e293b); text-decoration: none; }
+    .wc-picker-menu a:hover { background: var(--tertiary-bg, #f8fafc); }
+    .wc-picker-menu a[aria-current="true"] { color: var(--color-primary, #5368d5); font-weight: 500; }
+    .wc-picker-menu small { color: var(--text-secondary-color, #64748b); font-family: var(--font-family-monospace, monospace); font-size: var(--font-size-xs, 12px); }
+    .wc-bar-none { color: var(--text-secondary-color, #64748b); }
+    .wc-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-block-end: 1px solid var(--border-secondary-color, #cbd5e1); margin-block-end: 20px; }
+    .wc-tabs a { display: flex; align-items: center; gap: 6px; padding: 6px 12px 8px; margin-block-end: -1px; color: var(--text-secondary-color, #475569); text-decoration: none; border-block-end: 2px solid transparent; }
+    .wc-tabs a:hover { color: var(--text-primary-color, #1e293b); }
+    .wc-tabs a[aria-current="page"] { color: var(--color-primary, #5368d5); font-weight: 500; border-block-end-color: var(--color-primary, #5368d5); }
+    .wc-count { font-size: var(--font-size-xs, 12px); padding: 1px 5px; border-radius: var(--border-radius, 4px); background: var(--secondary-bg, #f1f5f9); color: var(--text-secondary-color, #475569); }
+</style>
+
+<div class="wc-bar">
+    <span class="wc-bar-label">Workflow</span>
+
+    <details class="wc-picker">
+        <summary>
+            {%- if bar.selected -%}
+                {{ bar.selected.label }}
+            {%- else -%}
+                <span class="wc-bar-none">All workflows</span>
+            {%- endif -%}
+        </summary>
+        <div class="wc-picker-menu">
+            <a href="{{ bar.clearUrl }}" {{ bar.selected is null ? 'aria-current="true"' : '' }}>All workflows</a>
+            {% for option in bar.options %}
+                <a href="{{ option.url }}" {{ option.selected ? 'aria-current="true"' : '' }}>
+                    {{ option.label }} <small>{{ option.name }}</small>
+                </a>
+            {% endfor %}
+        </div>
+    </details>
+
+    {% if bar.selected %}
+        <a href="{{ bar.clearUrl }}">All workflows</a>
+    {% endif %}
+</div>
+
+{% if bar.tabs is not empty %}
+    <nav class="wc-tabs">
+        {% for tab in bar.tabs %}
+            <a href="{{ tab.url }}" {{ tab.active ? 'aria-current="page"' : '' }}>
+                {{ tab.label }}
+                {% if tab.count is not null %}<span class="wc-count">{{ tab.count }}</span>{% endif %}
+            </a>
+        {% endfor %}
+    </nav>
+{% endif %}

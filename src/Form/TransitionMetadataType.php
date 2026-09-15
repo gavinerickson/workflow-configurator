@@ -34,15 +34,45 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * into the same JSON column, and the entity's #[KnownWorkflowTask] constraint
  * remains the server-side authority (§9.4).
  *
+ * Operator-facing strings reaching this form — task-schema help, role labels
+ * and help — are escaped before they become form options: EasyAdmin's theme
+ * renders `help` through Twig's `raw` filter, so an unescaped angle bracket in
+ * a task's own documentation is parsed as markup. A tag that takes content
+ * (`<template>`, `<select>`, `<textarea>`) then swallows the remainder of the
+ * form, which neither renders nor submits. Task authors write prose, not HTML;
+ * escaping here is what keeps that true for every consumer.
+ *
  * @extends AbstractType<array<string, mixed>>
  */
 class TransitionMetadataType extends AbstractType implements DataMapperInterface
 {
+    /**
+     * Block prefix for the theme that groups these children into sections
+     * (templates/form/transition_metadata.html.twig).
+     */
+    public const BLOCK_PREFIX = 'workflow_transition_metadata';
+
     public function __construct(
         private readonly WorkflowTaskMap $taskMap,
         private readonly TransitionRoleMap $roles,
         private readonly WorkflowTransitionRepository $transitions,
     ) {
+    }
+
+    public function getBlockPrefix(): string
+    {
+        return self::BLOCK_PREFIX;
+    }
+
+    /**
+     * Operator-facing text on its way to a `help` or `label` option, which
+     * EasyAdmin renders unescaped. Prose in, prose out — a task documenting
+     * `"<prefix>_<n>"` shows those angle brackets instead of injecting an
+     * element that eats the rest of the form.
+     */
+    private static function asText(?string $text): ?string
+    {
+        return null === $text ? null : htmlspecialchars($text, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8');
     }
 
     /**
@@ -94,11 +124,11 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         foreach ($this->roles as $key => $role) {
             $values = $role->getValues();
             $builder->add($key, ChoiceType::class, [
-                'label' => $role->getFormLabel(),
+                'label' => self::asText($role->getFormLabel()),
                 'choices' => array_combine(array_map(ucfirst(...), $values), $values),
                 'required' => false,
                 'placeholder' => '(none)',
-                'help' => $role->getFormHelp(),
+                'help' => self::asText($role->getFormHelp()),
             ]);
         }
 
@@ -107,7 +137,7 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
             'label' => 'Additional metadata (advanced)',
             'required' => false,
             'attr' => ['rows' => 3],
-            'help' => \sprintf('JSON object for keys the guided inputs do not manage — normally empty. The managed keys (%s) and "guard" are rejected here; an "args" object may carry unrecognised task parameters awaiting cleanup.', implode(', ', $ownedKeys)),
+            'help' => self::asText(\sprintf('JSON object for keys the guided inputs do not manage — normally empty. The managed keys (%s) and "guard" are rejected here; an "args" object may carry unrecognised task parameters awaiting cleanup.', implode(', ', $ownedKeys))),
         ]);
         $extra->addModelTransformer(new CallbackTransformer(
             static function (?array $keys): string {
@@ -291,7 +321,7 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
     private function buildTaskPanel(FormBuilderInterface $builder, string $taskName, ArgsSchema $schema): FormBuilderInterface
     {
         $panel = $builder->create('args_'.$taskName, FormType::class, [
-            'label' => \sprintf('"%s" parameters', $taskName),
+            'label' => self::asText(\sprintf('%s parameters', $taskName)),
             'attr' => ['data-task-panel' => $taskName],
             'required' => false,
             'help' => [] === $schema->args ? 'This task takes no parameters.' : null,
@@ -332,9 +362,9 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         ]);
 
         $options = [
-            'label' => $arg->label,
+            'label' => self::asText($arg->label),
             'required' => $arg->required,
-            'help' => [] === $help ? null : implode(' ', $help),
+            'help' => [] === $help ? null : self::asText(implode(' ', $help)),
         ];
 
         if (ArgType::Choice === $arg->type) {

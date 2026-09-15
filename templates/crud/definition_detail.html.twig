@@ -1,0 +1,122 @@
+{#
+   The definition detail page as the workflow's home: the graph, its places and
+   what occupies them, and its transitions with what each carries — rather than
+   a field list with the rest behind three other screens.
+
+   The Mermaid diagram keeps its own page too (the Diagram action and the
+   context bar's tab); this is the same dump shown in place.
+#}
+{% extends '@WorkflowConfigurator/crud/detail.html.twig' %}
+
+{% block detail_fields %}
+    {{ parent() }}
+
+    {% set hub = workflow_admin_hub(entity.instance) %}
+
+    <style>
+        .wc-hub { margin-block-start: 24px; }
+        .wc-hub-diagram { border: 1px solid var(--border-secondary-color, #cbd5e1); border-radius: var(--border-radius, 4px); background: var(--content-panel-bg, #fff); padding: 18px 20px; overflow-x: auto; }
+        .wc-hub-diagram pre.mermaid { text-align: center; margin: 0; background: none; border: 0; }
+        .wc-hub-panels { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; margin-block-start: 20px; }
+        @media (max-width: 991px) { .wc-hub-panels { grid-template-columns: minmax(0, 1fr); } }
+        .wc-hub-panel { border: 1px solid var(--border-secondary-color, #cbd5e1); border-radius: var(--border-radius, 4px); overflow: hidden; }
+        .wc-hub-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 16px; background: var(--tertiary-bg, #f8fafc); border-block-end: 1px solid var(--border-secondary-color, #cbd5e1); }
+        .wc-hub-head b { font-size: var(--font-size-lg, 16px); font-weight: 600; color: var(--text-primary-color, #1e293b); }
+        .wc-hub-head span { color: var(--text-secondary-color, #64748b); margin-inline-start: 6px; }
+        .wc-hub-panel table { width: 100%; border-collapse: collapse; }
+        .wc-hub-panel th { text-align: start; font-size: var(--font-size-sm, 13px); font-weight: 600; color: var(--text-secondary-color, #475569); padding: 8px 16px; border-block-end: 1px solid var(--border-secondary-color, #cbd5e1); }
+        .wc-hub-panel td { padding: 8px 16px; color: var(--text-secondary-color, #475569); border-block-end: 1px solid var(--border-tertiary-color, #f1f5f9); vertical-align: middle; }
+        .wc-hub-panel tr:last-child td { border-block-end: 0; }
+        .wc-name { font-family: var(--font-family-monospace, monospace); font-size: var(--font-size-sm, 13px); }
+        .wc-tag { display: inline-block; font-size: var(--font-size-xs, 12px); padding: 1px 5px; border-radius: var(--border-radius, 4px); background: var(--secondary-bg, #f1f5f9); color: var(--text-secondary-color, #475569); }
+        .wc-tag-initial { background: var(--indigo-50, #eef2ff); color: var(--indigo-600, #4f46e5); }
+        .wc-route { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+        .wc-muted { color: var(--text-tertiary-color, #94a3b8); }
+        .wc-hub-empty { padding: 14px 16px; color: var(--text-tertiary-color, #94a3b8); }
+    </style>
+
+    <div class="wc-hub">
+        {% if hub.unreachable is not empty %}
+            <div class="alert alert-warning">Places not reachable from the initial place: {{ hub.unreachable|join(', ') }}.</div>
+        {% endif %}
+
+        {% if hub.mermaid is not empty %}
+            <div class="wc-hub-diagram"><pre class="mermaid">{{ hub.mermaid }}</pre></div>
+        {% else %}
+            <div class="wc-hub-diagram wc-hub-empty">Nothing to draw yet — add a place to see the graph.</div>
+        {% endif %}
+
+        <div class="wc-hub-panels">
+            <section class="wc-hub-panel">
+                <div class="wc-hub-head">
+                    <span><b>Places</b><span>{{ hub.places|length }}</span></span>
+                    <a href="{{ hub.addPlaceUrl }}">Add place</a>
+                </div>
+                {% if hub.places is empty %}
+                    <div class="wc-hub-empty">No places yet.</div>
+                {% else %}
+                    <table>
+                        <thead><tr><th>Name</th><th>Label</th><th style="text-align: end;">Documents</th></tr></thead>
+                        <tbody>
+                            {% for place in hub.places %}
+                                <tr>
+                                    <td>
+                                        <a class="wc-name" href="{{ place.url }}">{{ place.name }}</a>
+                                        {% if place.initial %}<span class="wc-tag wc-tag-initial">initial</span>{% endif %}
+                                    </td>
+                                    <td>{{ place.label }}</td>
+                                    <td style="text-align: end;">
+                                        {%- if place.occupancy > 0 %}<span class="wc-tag">{{ place.occupancy }}</span>{% else %}<span class="wc-muted">—</span>{% endif -%}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </section>
+
+            <section class="wc-hub-panel">
+                <div class="wc-hub-head">
+                    <span><b>Transitions</b><span>{{ hub.transitions|length }}</span></span>
+                    <a href="{{ hub.addTransitionUrl }}">Add transition</a>
+                </div>
+                {% if hub.transitions is empty %}
+                    <div class="wc-hub-empty">No transitions yet.</div>
+                {% else %}
+                    <table>
+                        <thead><tr><th>Name</th><th>From → to</th><th>Behaviour</th></tr></thead>
+                        <tbody>
+                            {% for transition in hub.transitions %}
+                                <tr>
+                                    <td><a class="wc-name" href="{{ transition.url }}">{{ transition.name }}</a></td>
+                                    <td>
+                                        <span class="wc-route">
+                                            {%- for from in transition.froms %}<span class="wc-tag wc-name">{{ from }}</span>{% endfor -%}
+                                            <span class="wc-muted">→</span>
+                                            {%- for to in transition.tos %}<span class="wc-tag wc-name">{{ to }}</span>{% endfor -%}
+                                        </span>
+                                    </td>
+                                    <td>{{ transition.behaviour is empty ? '<span class="wc-muted">—</span>'|raw : transition.behaviour }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+
+    {% if hub.mermaid is not empty %}
+        <script type="module">
+            {# Rendered client-side; if the CDN is unreachable the page still
+               shows the places and transitions below. #}
+            try {
+                const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+                mermaid.initialize({ startOnLoad: false });
+                await mermaid.run();
+            } catch (e) {
+                console.warn('Mermaid failed to load; the graph is listed below.', e);
+            }
+        </script>
+    {% endif %}
+{% endblock %}

@@ -224,6 +224,75 @@ class AdminSmokeTest extends WebTestCase
         self::assertStringContainsString('file_history', $table);
     }
 
+    public function testTheDefinitionPageIsTheWorkflowsHome(): void
+    {
+        $this->seedGraph();
+        $definition = $this->entityManager->getRepository(WorkflowDefinition::class)->findOneBy(['name' => 'seeded']);
+        self::assertNotNull($definition);
+
+        $crawler = $this->client->request('GET', self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowDefinitionCrudController::class)
+            ->setAction(Action::DETAIL)
+            ->setEntityId($definition->getId())
+            ->generateUrl());
+        self::assertResponseIsSuccessful();
+
+        // The graph, in place rather than behind the Diagram action.
+        self::assertGreaterThan(0, $crawler->filter('.wc-hub-diagram pre.mermaid')->count());
+        self::assertStringContainsString('received', $crawler->filter('pre.mermaid')->text());
+
+        // Both panels, with this workflow's pieces and a way to add more.
+        $places = $crawler->filter('.wc-hub-panel')->eq(0);
+        self::assertStringContainsString('received', $places->text());
+        self::assertStringContainsString('stamped', $places->text());
+        self::assertStringContainsString('initial', $places->text());
+
+        $transitions = $crawler->filter('.wc-hub-panel')->eq(1);
+        self::assertStringContainsString('stamp', $transitions->text());
+
+        self::assertSame(2, $crawler->filter('.wc-hub-head a')->count(), 'Each panel offers its own add link.');
+    }
+
+    public function testTheDefinitionPageSurvivesAGraphThatCannotBeDrawnYet(): void
+    {
+        // A definition is created empty and built incrementally (§6.2 rule 1).
+        // With no places there is no graph to dump, and that must not take the
+        // page down: it is the page the operator builds the workflow from.
+        $definition = new WorkflowDefinition()->setName('half-built')->setLabel('Half built');
+        $this->entityManager->persist($definition);
+        $this->entityManager->flush();
+
+        $crawler = $this->client->request('GET', self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowDefinitionCrudController::class)
+            ->setAction(Action::DETAIL)
+            ->setEntityId($definition->getId())
+            ->generateUrl());
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('pre.mermaid')->count());
+        self::assertStringContainsString('No places yet', $crawler->filter('.wc-hub-panel')->eq(0)->text());
+        self::assertStringContainsString('Add place', $crawler->filter('.wc-hub-head')->eq(0)->text());
+    }
+
+    public function testADefinitionWithoutAnInitialPlaceStillDrawsWhatExists(): void
+    {
+        // Places but no initial place yet: the graph is drawable and the
+        // operator should see it while finishing the wiring.
+        $definition = new WorkflowDefinition()->setName('no-initial')->setLabel('No initial');
+        $definition->addPlace(new WorkflowPlace()->setName('draft')->setLabel('Draft'));
+        $this->entityManager->persist($definition);
+        $this->entityManager->flush();
+
+        $crawler = $this->client->request('GET', self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowDefinitionCrudController::class)
+            ->setAction(Action::DETAIL)
+            ->setEntityId($definition->getId())
+            ->generateUrl());
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('draft', $crawler->filter('.wc-hub-panel')->eq(0)->text());
+    }
+
     private function seedSecondGraph(): WorkflowDefinition
     {
         $definition = new WorkflowDefinition()->setName('second')->setLabel('Second');

@@ -7,6 +7,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGeneratorInterface;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
+use WorkflowConfigurator\Admin\WorkflowHubView;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
@@ -28,6 +29,7 @@ final class WorkflowAdminExtension extends AbstractExtension
         private readonly AdminUrlGeneratorInterface $urls,
         private readonly WorkflowPlaceRepository $places,
         private readonly WorkflowTransitionRepository $transitions,
+        private readonly WorkflowHubView $hub,
     ) {
     }
 
@@ -35,6 +37,7 @@ final class WorkflowAdminExtension extends AbstractExtension
     {
         return [
             new TwigFunction('workflow_admin_bar', $this->bar(...)),
+            new TwigFunction('workflow_admin_hub', $this->hub->of(...)),
         ];
     }
 

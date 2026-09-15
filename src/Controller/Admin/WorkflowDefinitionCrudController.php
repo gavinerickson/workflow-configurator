@@ -54,7 +54,7 @@ class WorkflowDefinitionCrudController extends AbstractCrudController
             ->overrideTemplate('crud/index', '@WorkflowConfigurator/crud/index.html.twig')
             ->overrideTemplate('crud/new', '@WorkflowConfigurator/crud/new.html.twig')
             ->overrideTemplate('crud/edit', '@WorkflowConfigurator/crud/edit.html.twig')
-            ->overrideTemplate('crud/detail', '@WorkflowConfigurator/crud/detail.html.twig');
+            ->overrideTemplate('crud/detail', '@WorkflowConfigurator/crud/definition_detail.html.twig');
     }
 
     public function configureActions(Actions $actions): Actions

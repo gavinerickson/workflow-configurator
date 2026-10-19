@@ -25,6 +25,14 @@ never silently no-opped. A warm cache serves without definition queries, and
 any ORM edit to a definition invalidates it. Dynamic workflows dispatch the
 same events, in the same order, as `framework.workflows`-defined ones.
 
+An edit reaches every process, not only the one that saved it. The compiled
+definitions live in one configurable cache pool (`cache_pool`, default
+`cache.app`) that the registry and the invalidator both use, so a consumer
+running on several hosts points it at a pool they share; and the registry's
+in-process memo of built workflows is a service reset (`kernel.reset`), so a
+long-running worker rebuilds on its next message rather than at restart.
+Within one request or message the graph stays the one it started with.
+
 ### 2.2 Guards never fail open
 
 A transition's guard expression allows when true and blocks when false; a

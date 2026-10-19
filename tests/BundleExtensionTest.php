@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\DynamicWorkflowRegistry;
+use WorkflowConfigurator\WorkflowCacheInvalidator;
 use WorkflowConfigurator\WorkflowConfiguratorBundle;
 
 /**
@@ -23,15 +24,16 @@ class BundleExtensionTest extends TestCase
 {
     /**
      * @param array<string, class-string> $kernelBundles
+     * @param array<string, mixed>        $config
      */
-    private function load(array $kernelBundles): ContainerBuilder
+    private function load(array $kernelBundles, array $config = []): ContainerBuilder
     {
         $builder = new ContainerBuilder();
         $builder->setParameter('kernel.bundles', $kernelBundles);
 
         $extension = new WorkflowConfiguratorBundle()->getContainerExtension();
         self::assertNotNull($extension);
-        $extension->load([], $builder);
+        $extension->load([] === $config ? [] : [$config], $builder);
 
         return $builder;
     }
@@ -50,5 +52,22 @@ class BundleExtensionTest extends TestCase
 
         self::assertFalse($builder->hasDefinition(WorkflowDefinitionCrudController::class));
         self::assertTrue($builder->hasDefinition(DynamicWorkflowRegistry::class));
+    }
+
+    /**
+     * Registry and invalidator read the one configured pool, so a consumer
+     * with several hosts can give them a shared one (specs/DynamicWorkflows.md
+     * §3); the registry is reset between messages.
+     */
+    #[Verifies('REQ-001')]
+    public function testRegistryAndInvalidatorShareTheConfiguredCachePoolAndTheRegistryResets(): void
+    {
+        $default = $this->load([]);
+        self::assertSame('cache.app', (string) $default->getDefinition(DynamicWorkflowRegistry::class)->getArgument('$cache'));
+
+        $builder = $this->load([], ['cache_pool' => 'cache.shared_pool']);
+        self::assertSame('cache.shared_pool', (string) $builder->getDefinition(DynamicWorkflowRegistry::class)->getArgument('$cache'));
+        self::assertSame('cache.shared_pool', (string) $builder->getDefinition(WorkflowCacheInvalidator::class)->getArgument('$cache'));
+        self::assertSame([['method' => 'reset']], $builder->getDefinition(DynamicWorkflowRegistry::class)->getTag('kernel.reset'));
     }
 }

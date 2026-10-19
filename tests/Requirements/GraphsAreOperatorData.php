@@ -10,6 +10,7 @@ use RequirementsAsCode\RequirementDefinition;
 #[Criterion('An enabled definition compiles and runs with no YAML or container configuration')]
 #[Criterion('A missing or disabled workflow is refused loudly, never silently no-opped')]
 #[Criterion('A warm cache serves without definition queries, and any ORM edit invalidates it')]
+#[Criterion('An edit reaches every process: the cache pool is configurable so processes can share it, and a long-running worker drops its memo between messages')]
 #[Criterion('Dynamic workflows dispatch the same events, in the same order, as statically configured ones')]
 final class GraphsAreOperatorData implements RequirementDefinition
 {

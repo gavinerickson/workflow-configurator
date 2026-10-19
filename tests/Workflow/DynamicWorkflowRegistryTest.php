@@ -10,9 +10,12 @@ use WorkflowConfigurator\WorkflowNotFoundException;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Workflow\Event\Event;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
- * specs/DynamicWorkflows.md §7 criteria 1, 2, 3, 8.
+ * specs/DynamicWorkflows.md §7 criteria 1, 2, 3, 8, and the kernel.reset of
+ * the in-process memo (§3).
  */
 #[Group('rac')]
 #[Verifies('REQ-001')]
@@ -83,6 +86,33 @@ class DynamicWorkflowRegistryTest extends WorkflowTestCase
 
         $workflow = $this->registry->getByName('crit3');
         self::assertSame('stamp_v2', $workflow->getDefinition()->getTransitions()[0]->getName());
+    }
+
+    public function testAKernelResetDropsTheMemoSoAnEditMadeInAnotherProcessIsSeen(): void
+    {
+        $this->createDefinition('crit3-reset');
+        $this->registry->getByName('crit3-reset'); // memo + cache warm
+
+        // Another process edits the graph: its rows change here (no ORM event
+        // in this process) and its invalidator deletes the entry from the
+        // pool both processes share.
+        self::getContainer()->get(Connection::class)
+            ->executeStatement("UPDATE workflow_transition SET name = 'stamp_elsewhere' WHERE definition_id = (SELECT id FROM workflow_definition WHERE name = 'crit3-reset')");
+        $pool = self::getContainer()->get('cache.app');
+        self::assertInstanceOf(CacheInterface::class, $pool);
+        $pool->delete(DynamicWorkflowRegistry::CACHE_KEY_PREFIX.'crit3-reset');
+        $this->entityManager->clear();
+
+        // Within one message the memo still answers: one graph per unit of work.
+        self::assertSame('stamp', $this->registry->getByName('crit3-reset')->getDefinition()->getTransitions()[0]->getName());
+
+        // Between messages the worker resets its services (kernel.reset); the
+        // registry is one of them, so the next message rebuilds.
+        $resetter = self::getContainer()->get('services_resetter');
+        self::assertInstanceOf(ResetInterface::class, $resetter);
+        $resetter->reset();
+
+        self::assertSame('stamp_elsewhere', $this->registry->getByName('crit3-reset')->getDefinition()->getTransitions()[0]->getName());
     }
 
     public function testEventSequenceMatchesStaticallyConfiguredWorkflows(): void

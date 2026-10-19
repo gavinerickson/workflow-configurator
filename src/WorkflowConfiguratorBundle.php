@@ -28,6 +28,8 @@ use WorkflowConfigurator\Validator\TransitionPlacesBelongToDefinitionValidator;
 use WorkflowConfigurator\Validator\ValidGuardExpressionValidator;
 use WorkflowConfigurator\Validator\ValidWorkflowDefinitionValidator;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
 /**
  * Operator-editable workflow graphs over Symfony Workflow. The operator
  * configures the graph; behaviour attached to transitions remains code,
@@ -50,6 +52,11 @@ class WorkflowConfiguratorBundle extends AbstractBundle
                 ->scalarNode('table_prefix')
                     ->defaultValue(TablePrefixListener::DEFAULT_PREFIX)
                     ->info('Prefix for the five workflow tables. The default matches the entity-declared names, so existing consumers of those names need no config; override it when your schema already owns "workflow_*".')
+                ->end()
+                ->scalarNode('cache_pool')
+                    ->defaultValue('cache.app')
+                    ->cannotBeEmpty()
+                    ->info('Cache pool holding the compiled definitions. Every process that runs workflows must share it, so a consumer with more than one host (several pods, or web and workers on separate machines) points this at a shared pool — e.g. a Doctrine DBAL or Redis one — rather than the default filesystem cache.app.')
                 ->end()
             ->end();
     }
@@ -79,7 +86,7 @@ class WorkflowConfiguratorBundle extends AbstractBundle
     }
 
     /**
-     * @param array{table_prefix: string} $config
+     * @param array{table_prefix: string, cache_pool: string} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -103,8 +110,15 @@ class WorkflowConfiguratorBundle extends AbstractBundle
         $services->set(WorkflowTransitionRepository::class);
 
         // Runtime: registry + the listeners that keep it honest.
-        $services->set(DynamicWorkflowRegistry::class);
-        $services->set(WorkflowCacheInvalidator::class);
+        // The memo of built workflows is a service reset, so a Messenger
+        // worker sees an edit on its next message (explicit as well as
+        // autoconfigured through ResetInterface, for the same reason as the
+        // tags above). Registry and invalidator must share one pool.
+        $services->set(DynamicWorkflowRegistry::class)
+            ->arg('$cache', service($config['cache_pool']))
+            ->tag('kernel.reset', ['method' => 'reset']);
+        $services->set(WorkflowCacheInvalidator::class)
+            ->arg('$cache', service($config['cache_pool']));
         $services->set(GuardExpressionSubscriber::class);
         $services->set(TaskDispatchSubscriber::class);
         $services->set(ReachabilityChecker::class);

@@ -11,6 +11,7 @@ use Symfony\Component\Workflow\Transition;
 use Symfony\Component\Workflow\Workflow;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * The only way application code obtains dynamic workflows
@@ -20,8 +21,15 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  * entity-derived config array is cached (invalidated by
  * WorkflowCacheInvalidator on any definition edit), so a warm cache performs
  * zero definition queries; building from the array is pure PHP.
+ *
+ * Built workflows are also memoised for the life of the process. The memo is
+ * a service reset (kernel.reset), so a long-running Messenger worker drops it
+ * between messages and rereads the cache on the next one: an edit saved in
+ * another process is seen there as soon as the shared pool is invalidated
+ * (the pool is the bundle's cache_pool option, which must be one every
+ * process shares when there is more than one host).
  */
-class DynamicWorkflowRegistry
+class DynamicWorkflowRegistry implements ResetInterface
 {
     public const CACHE_KEY_PREFIX = 'dynamic_workflow.';
 
@@ -57,6 +65,17 @@ class DynamicWorkflowRegistry
     public function forget(string $name): void
     {
         unset($this->built[$name]);
+    }
+
+    /**
+     * Drops every in-process memo. Called by the kernel between Messenger
+     * messages (and between requests under a resident runtime), so the next
+     * get() rereads the cache pool, where an edit made elsewhere has already
+     * deleted the entry.
+     */
+    public function reset(): void
+    {
+        $this->built = [];
     }
 
     /**

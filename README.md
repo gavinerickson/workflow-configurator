@@ -41,7 +41,17 @@ workflow_configurator:
     # Prefix for the five tables. The default matches the entity-declared
     # names; override when your schema already owns "workflow_*".
     table_prefix: workflow_
+    # Pool holding the compiled definitions, shared by the registry and the
+    # cache invalidator. The default suits one host; with several (pods, or
+    # web and workers on separate machines) use a pool they all share, e.g.
+    # a Doctrine DBAL or Redis one, or an edit reaches only the process
+    # that saved it.
+    cache_pool: cache.app
 ```
+
+The registry also memoises built workflows per process and resets that memo
+through `kernel.reset`, which Messenger triggers between messages — so a
+running worker picks up an edit on its next message without a restart.
 
 A custom prefix renames all five tables (join tables included). Join-table
 *columns* (`workflow_transition_id`, `workflow_place_id`) keep their names —

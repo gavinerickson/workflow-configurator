@@ -30,6 +30,7 @@ class WorkflowHubView
         private readonly ReachabilityChecker $reachabilityChecker,
         private readonly PlaceOccupancyCheckerInterface $occupancy,
         private readonly TransitionSummary $summary,
+        private readonly WorkflowNarrative $narrative,
         private readonly AdminUrlGeneratorInterface $urls,
     ) {
     }
@@ -38,7 +39,8 @@ class WorkflowHubView
      * @return array{
      *     mermaid: string,
      *     unreachable: list<string>,
-     *     places: list<array{name: string, label: string, initial: bool, occupancy: int, url: string}>,
+     *     narrative: array{places: list<array<string, mixed>>, checks: list<string>},
+     *     places: list<array{name: string, label: string, initial: bool, end: bool, occupancy: int, url: string}>,
      *     transitions: list<array{name: string, froms: list<string>, tos: list<string>, behaviour: string, url: string}>,
      *     addPlaceUrl: string,
      *     addTransitionUrl: string,
@@ -49,6 +51,7 @@ class WorkflowHubView
         return [
             'mermaid' => $this->mermaid($definition),
             'unreachable' => $this->reachabilityChecker->findUnreachablePlaces($definition),
+            'narrative' => $this->narrative($definition),
             'places' => $this->places($definition),
             'transitions' => $this->transitions($definition),
             'addPlaceUrl' => $this->newUrl(WorkflowPlaceCrudController::class),
@@ -87,7 +90,25 @@ class WorkflowHubView
     }
 
     /**
-     * @return list<array{name: string, label: string, initial: bool, occupancy: int, url: string}>
+     * The workflow in words (specs/DynamicWorkflows.md §10.6), each sentence
+     * carrying the link to its transition's form.
+     *
+     * @return array{places: list<array<string, mixed>>, checks: list<string>}
+     */
+    private function narrative(WorkflowDefinition $definition): array
+    {
+        $reading = $this->narrative->of($definition);
+        foreach ($reading['places'] as &$place) {
+            foreach ($place['sentences'] as &$sentence) {
+                $sentence['url'] = $this->editUrl(WorkflowTransitionCrudController::class, $sentence['id']);
+            }
+        }
+
+        return $reading;
+    }
+
+    /**
+     * @return list<array{name: string, label: string, initial: bool, end: bool, occupancy: int, url: string}>
      */
     private function places(WorkflowDefinition $definition): array
     {
@@ -99,6 +120,7 @@ class WorkflowHubView
                 'name' => $place->getName(),
                 'label' => $place->getLabel(),
                 'initial' => $place->getName() === $initial,
+                'end' => $place->isEnd(),
                 'occupancy' => $this->occupancy->countSubjectsIn($definition->getName(), $place->getName()),
                 'url' => $this->editUrl(WorkflowPlaceCrudController::class, $place->getId()),
             ];

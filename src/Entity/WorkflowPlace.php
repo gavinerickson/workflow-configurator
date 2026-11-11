@@ -5,6 +5,7 @@ namespace WorkflowConfigurator\Entity;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 use WorkflowConfigurator\Validator\ProtectedOccupiedPlace;
 
@@ -17,7 +18,20 @@ use WorkflowConfigurator\Validator\ProtectedOccupiedPlace;
 #[ProtectedOccupiedPlace]
 class WorkflowPlace
 {
-    use MetadataJsonTrait;
+    use MetadataJsonTrait {
+        getMetadataJson as private allMetadataJson;
+        setMetadataJson as private setAllMetadataJson;
+    }
+
+    /**
+     * The metadata key marking a place where documents finish
+     * (specs/DynamicWorkflows.md §10.5). Nothing at run time reads it; it
+     * lets the workflow read out in words (§10.6) tell an end from a place
+     * nobody has drawn a way out of.
+     */
+    public const END_KEY = 'end';
+
+    private bool $endKeyTyped = false;
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -97,6 +111,67 @@ class WorkflowPlace
         $this->metadata = $metadata;
 
         return $this;
+    }
+
+    public function isEnd(): bool
+    {
+        return true === ($this->metadata[self::END_KEY] ?? null);
+    }
+
+    public function setEnd(bool $end): static
+    {
+        if ($end) {
+            $this->metadata[self::END_KEY] = true;
+        } else {
+            unset($this->metadata[self::END_KEY]);
+        }
+
+        return $this;
+    }
+
+    /**
+     * The metadata as the admin form's JSON textarea shows it: everything
+     * but the end mark, which has an input of its own. Two inputs writing
+     * one key is the defect §9.1 records for transitions.
+     */
+    public function getMetadataJson(): string
+    {
+        if (null !== $this->invalidMetadataJson) {
+            return $this->invalidMetadataJson;
+        }
+
+        $end = $this->isEnd();
+        unset($this->metadata[self::END_KEY]);
+        try {
+            return $this->allMetadataJson();
+        } finally {
+            $this->setEnd($end);
+        }
+    }
+
+    /**
+     * Replaces every key except the end mark, which survives whatever the
+     * textarea holds and in whichever order the form writes its fields.
+     */
+    public function setMetadataJson(?string $json): static
+    {
+        $end = $this->isEnd();
+        $this->setAllMetadataJson($json);
+
+        $this->endKeyTyped = null === $this->invalidMetadataJson && \array_key_exists(self::END_KEY, $this->metadata);
+        $this->setEnd($end);
+
+        return $this;
+    }
+
+    #[Assert\Callback]
+    public function validateEndKeyNotTyped(ExecutionContextInterface $context): void
+    {
+        if ($this->endKeyTyped) {
+            $context->buildViolation('"end" belongs to the "Documents finish here" box and cannot be set here.')
+                ->atPath('metadataJson')
+                ->addViolation();
+        }
     }
 
     public function __toString(): string

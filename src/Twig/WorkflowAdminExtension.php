@@ -8,10 +8,12 @@ use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Admin\WorkflowHubView;
+use WorkflowConfigurator\Admin\WorkflowNarrative;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
 use WorkflowConfigurator\Entity\WorkflowDefinition;
+use WorkflowConfigurator\Entity\WorkflowTransition;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
 
@@ -30,6 +32,7 @@ final class WorkflowAdminExtension extends AbstractExtension
         private readonly WorkflowPlaceRepository $places,
         private readonly WorkflowTransitionRepository $transitions,
         private readonly WorkflowHubView $hub,
+        private readonly WorkflowNarrative $narrative,
     ) {
     }
 
@@ -38,6 +41,7 @@ final class WorkflowAdminExtension extends AbstractExtension
         return [
             new TwigFunction('workflow_admin_bar', $this->bar(...)),
             new TwigFunction('workflow_admin_hub', $this->hub->of(...)),
+            new TwigFunction('workflow_admin_says', $this->says(...)),
         ];
     }
 
@@ -75,6 +79,19 @@ final class WorkflowAdminExtension extends AbstractExtension
             'clearUrl' => $this->contextUrl($currentControllerFqcn, WorkflowAdminContext::ALL),
             'tabs' => $this->tabs($selected, $currentControllerFqcn),
         ];
+    }
+
+    /**
+     * What a saved transition currently says, for the top of its edit form
+     * (specs/DynamicWorkflows.md §10.6); nothing for any other entity.
+     *
+     * @return list<string>
+     */
+    public function says(mixed $entity): array
+    {
+        return $entity instanceof WorkflowTransition && null !== $entity->getId()
+            ? $this->narrative->sentencesFor($entity)
+            : [];
     }
 
     /**

@@ -7,6 +7,7 @@ use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormInterface;
 use WorkflowConfigurator\Form\TransitionMetadataType;
+use WorkflowConfigurator\Form\TransitionPickerType;
 use WorkflowConfigurator\Tests\Workflow\WorkflowTestCase;
 
 /**
@@ -37,9 +38,11 @@ class TransitionMetadataFormTest extends WorkflowTestCase
         $form->submit([
             'task' => 'rotate',
             'args_rotate' => ['degrees' => '90', 'pages' => '1-3'],
-            'next' => 'finish_rotate',
-            'deadline_after' => 'P3D',
-            'deadline_transition' => 'give_up',
+            'next' => ['pick' => TransitionPickerType::NOT_MADE_YET, 'other' => 'finish_rotate'],
+            'timing' => TransitionMetadataType::TIMING_WAIT,
+            'timing_amount' => '3',
+            'timing_unit' => 'days',
+            'deadline_transition' => ['pick' => TransitionPickerType::NOT_MADE_YET, 'other' => 'give_up'],
             'review' => '',
         ]);
 
@@ -76,7 +79,7 @@ class TransitionMetadataFormTest extends WorkflowTestCase
         $form->submit([
             'task' => 'noop',
             'args_rotate' => ['degrees' => '180'],
-            'next' => 'done',
+            'next' => ['other' => 'done'],
         ]);
 
         self::assertSame(['task' => 'noop', 'next' => 'done'], $form->getData());
@@ -143,5 +146,160 @@ class TransitionMetadataFormTest extends WorkflowTestCase
 
         self::assertFalse($form->get('extra')->isSynchronized());
         self::assertStringContainsString('not a valid JSON object', (string) $form->get('extra')->getErrors(true));
+    }
+
+    /*
+     * Timing (specs/DynamicWorkflows.md §10.3): the same "deadline" object,
+     * written from a choice, a number and a unit.
+     */
+
+    public function testStraightAwayWritesASelfFiringDeadline(): void
+    {
+        $form = $this->createForm();
+        $form->submit(['timing' => TransitionMetadataType::TIMING_SELF_NOW]);
+
+        self::assertTrue($form->isValid());
+        // No "transition" key: its absence is what makes a deadline self-firing.
+        self::assertSame(['deadline' => ['after' => 'PT1S']], $form->getData());
+    }
+
+    public function testStraightAwayKeepsTheDurationItWasLoadedWith(): void
+    {
+        $form = $this->createForm(['deadline' => ['after' => 'PT5S']]);
+        self::assertSame(TransitionMetadataType::TIMING_SELF_NOW, $form->get('timing')->getData());
+
+        // What the page would post back untouched.
+        $form = $this->createForm(['deadline' => ['after' => 'PT5S']]);
+        $form->submit(['timing' => TransitionMetadataType::TIMING_SELF_NOW, 'timing_original' => 'PT5S']);
+
+        self::assertSame(['deadline' => ['after' => 'PT5S']], $form->getData());
+    }
+
+    public function testAStoredWaitReadsAsANumberAndAUnit(): void
+    {
+        $form = $this->createForm(['deadline' => ['after' => 'P2W', 'transition' => 'post_unread']]);
+
+        self::assertSame(TransitionMetadataType::TIMING_WAIT, $form->get('timing')->getData());
+        self::assertSame(2, $form->get('timing_amount')->getData());
+        self::assertSame('weeks', $form->get('timing_unit')->getData());
+        self::assertNull($form->get('timing_exact')->getData());
+        self::assertSame('post_unread', $form->get('deadline_transition')->getData());
+    }
+
+    public function testASelfFiringWaitOfHoursIsWrittenInHours(): void
+    {
+        $form = $this->createForm();
+        $form->submit([
+            'timing' => TransitionMetadataType::TIMING_SELF_AFTER,
+            'timing_amount' => '2',
+            'timing_unit' => 'hours',
+            // Ignored: a self-firing deadline never names a transition.
+            'deadline_transition' => ['other' => 'stray'],
+        ]);
+
+        self::assertTrue($form->isValid());
+        self::assertSame(['deadline' => ['after' => 'PT2H']], $form->getData());
+    }
+
+    public function testADurationNoUnitCanSayRoundTripsThroughTheExactInput(): void
+    {
+        $stored = ['deadline' => ['after' => 'P1DT12H', 'transition' => 'post_unread']];
+
+        $form = $this->createForm($stored);
+        self::assertNull($form->get('timing_amount')->getData());
+        self::assertSame('P1DT12H', $form->get('timing_exact')->getData());
+
+        $form = $this->createForm($stored);
+        $form->submit([
+            'timing' => TransitionMetadataType::TIMING_WAIT,
+            'timing_unit' => 'days',
+            'timing_exact' => 'P1DT12H',
+            'timing_original' => 'P1DT12H',
+            'deadline_transition' => ['other' => 'post_unread'],
+        ]);
+
+        self::assertTrue($form->isValid());
+        self::assertSame($stored, $form->getData());
+    }
+
+    public function testAWaitWithoutItsFollowUpIsRefusedRatherThanStoredAsSelfFiring(): void
+    {
+        $form = $this->createForm();
+        $form->submit([
+            'timing' => TransitionMetadataType::TIMING_WAIT,
+            'timing_amount' => '7',
+            'timing_unit' => 'days',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertStringContainsString('Choose the transition that follows the wait', (string) $form->get('deadline_transition')->getErrors());
+        // {"after": "P7D"} alone would mean "this transition fires itself".
+        self::assertArrayNotHasKey('deadline', $form->getData());
+    }
+
+    public function testAWaitWithoutALengthIsRefused(): void
+    {
+        $form = $this->createForm();
+        $form->submit(['timing' => TransitionMetadataType::TIMING_SELF_AFTER]);
+
+        self::assertFalse($form->isValid());
+        self::assertStringContainsString('Say how long', (string) $form->get('timing_amount')->getErrors());
+    }
+
+    public function testChoosingNoTimingRemovesAStoredDeadline(): void
+    {
+        $form = $this->createForm(['deadline' => ['after' => 'P3D', 'transition' => 'give_up']]);
+        $form->submit(['timing' => TransitionMetadataType::TIMING_NONE, 'timing_amount' => '3', 'timing_unit' => 'days']);
+
+        self::assertSame([], $form->getData());
+    }
+
+    /*
+     * Transition pickers (§10.4).
+     */
+
+    public function testAPickerOffersTransitionsThatExistAndTakesANewNameOnlyAsText(): void
+    {
+        // The reference graph has one transition, "stamp".
+        $this->createDefinition('picker');
+
+        $form = $this->createForm(['next' => 'stamp']);
+        self::assertSame('stamp', $form->get('next')->get('pick')->getData());
+        self::assertNull($form->get('next')->get('other')->getData());
+
+        // A name matching nothing loads as "one I have not made yet".
+        $form = $this->createForm(['next' => 'stmp']);
+        self::assertSame(TransitionPickerType::NOT_MADE_YET, $form->get('next')->get('pick')->getData());
+        self::assertSame('stmp', $form->get('next')->get('other')->getData());
+
+        $form = $this->createForm();
+        $form->submit(['next' => ['pick' => 'stamp']]);
+        self::assertSame(['next' => 'stamp'], $form->getData());
+
+        // The sentinel alone names nothing.
+        $form = $this->createForm();
+        $form->submit(['next' => ['pick' => TransitionPickerType::NOT_MADE_YET, 'other' => '']]);
+        self::assertSame([], $form->getData());
+
+        // A name not offered cannot be smuggled through the select.
+        $form = $this->createForm();
+        $form->submit(['next' => ['pick' => 'no_such_transition']]);
+        self::assertFalse($form->isValid());
+    }
+
+    public function testATransitionTypedTaskParameterIsAPicker(): void
+    {
+        $form = $this->createForm(['task' => 'fork', 'args' => ['otherwise' => 'to_post']]);
+        self::assertSame('to_post', $form->get('args_fork')->get('otherwise')->getData());
+
+        $form = $this->createForm();
+        $form->submit([
+            'task' => 'fork',
+            'args_fork' => ['otherwise' => ['pick' => TransitionPickerType::NOT_MADE_YET, 'other' => 'to_post']],
+            'next' => ['other' => 'publish'],
+        ]);
+
+        self::assertTrue($form->isValid());
+        self::assertSame(['task' => 'fork', 'args' => ['otherwise' => 'to_post'], 'next' => 'publish'], $form->getData());
     }
 }

@@ -2,7 +2,7 @@
 
 namespace WorkflowConfigurator\Form;
 
-use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
+use WorkflowConfigurator\Duration;
 use WorkflowConfigurator\Task\Args\ArgDefinition;
 use WorkflowConfigurator\Task\Args\ArgsSchema;
 use WorkflowConfigurator\Task\Args\ArgType;
@@ -14,10 +14,14 @@ use Symfony\Component\Form\DataMapperInterface;
 use Symfony\Component\Form\Exception\TransformationFailedException;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -29,6 +33,11 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * inputs for "next", "deadline" and every registered transition role
  * (specs/WorkflowBundleExtraction.md §4), and a collapsed advanced textarea
  * for keys the form does not manage.
+ *
+ * The deadline is edited as **Timing** (§10.3): one choice of what time does
+ * to this transition, a number and a unit in place of an ISO duration, and a
+ * transition picker (§10.4) for what follows. It reads and writes the same
+ * "deadline" object the sweep consumes.
  *
  * The stored shape (§5.2, §8.3) is unchanged — this is a friendlier writer
  * into the same JSON column, and the entity's #[KnownWorkflowTask] constraint
@@ -52,10 +61,17 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
      */
     public const BLOCK_PREFIX = 'workflow_transition_metadata';
 
+    public const TIMING_NONE = 'none';
+    public const TIMING_SELF_NOW = 'self_now';
+    public const TIMING_SELF_AFTER = 'self_after';
+    public const TIMING_WAIT = 'wait';
+
+    /** What "straight away" writes when there is no stored value to keep. */
+    private const STRAIGHT_AWAY = 'PT1S';
+
     public function __construct(
         private readonly WorkflowTaskMap $taskMap,
         private readonly TransitionRoleMap $roles,
-        private readonly WorkflowTransitionRepository $transitions,
     ) {
     }
 
@@ -102,25 +118,51 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
             $builder->add($this->buildTaskPanel($builder, $taskName, $this->taskMap->get($taskName)->describeArgs()));
         }
 
-        $suggestions = ['data-transition-suggest' => $this->transitionSuggestions()];
-        $builder->add('next', TextType::class, [
-            'label' => 'Next transition',
-            'required' => false,
-            'attr' => $suggestions,
-            'help' => 'Follow-up transition the task handler applies when its work completes. Free text: it may name a transition you have not created yet.',
+        $builder->add('next', TransitionPickerType::class, [
+            'label' => 'Then',
+            'help' => 'The transition applied when the task finishes its work. Leave at (none) and the document rests where this transition put it.',
         ]);
-        $builder->add('deadline_after', TextType::class, [
-            'label' => 'Deadline — after',
+
+        $builder->add('timing', ChoiceType::class, [
+            'label' => 'What time does here',
+            'expanded' => true,
             'required' => false,
-            'attr' => ['placeholder' => 'e.g. P3D'],
-            'help' => 'ISO-8601 duration a document may rest before the deadline fires — "PT5M" is five minutes, "P3D" is three days (§8.3).',
+            'placeholder' => false,
+            'empty_data' => self::TIMING_NONE,
+            'choices' => [
+                'Nothing: this transition waits to be applied' => self::TIMING_NONE,
+                'Starts by itself, straight away' => self::TIMING_SELF_NOW,
+                'Starts by itself, after a wait' => self::TIMING_SELF_AFTER,
+                'Limits the wait afterwards' => self::TIMING_WAIT,
+            ],
         ]);
-        $builder->add('deadline_transition', TextType::class, [
-            'label' => 'Deadline — transition',
+        $builder->add('timing_amount', IntegerType::class, [
+            'label' => 'How long',
             'required' => false,
-            'attr' => $suggestions,
-            'help' => 'Transition the deadline applies. Leave empty and this transition fires itself once a document has rested "after" in any of its from-places.',
+            'attr' => ['min' => 1, 'placeholder' => 'e.g. 7'],
         ]);
+        $units = Duration::units();
+        $builder->add('timing_unit', ChoiceType::class, [
+            'label' => 'Unit',
+            'required' => false,
+            'placeholder' => false,
+            'empty_data' => 'days',
+            'choices' => array_combine($units, $units),
+        ]);
+        $builder->add('timing_exact', TextType::class, [
+            'label' => 'Exact duration',
+            'required' => false,
+            'attr' => ['placeholder' => 'e.g. P1DT12H'],
+            'help' => 'Only for a wait a number and a unit cannot say: an ISO-8601 duration such as "P1DT12H" (a day and a half) or "P1M" (a month). A number above takes precedence.',
+        ]);
+        // The duration as stored, so "straight away" re-saves the value it
+        // was loaded with (PT5S stays PT5S) rather than normalising it.
+        $builder->add('timing_original', HiddenType::class, ['required' => false]);
+        $builder->add('deadline_transition', TransitionPickerType::class, [
+            'label' => 'Then',
+            'help' => 'The transition applied to a document that has waited that long.',
+        ]);
+
         foreach ($this->roles as $key => $role) {
             $values = $role->getValues();
             $builder->add($key, ChoiceType::class, [
@@ -173,6 +215,25 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         $builder->add($extra);
 
         $builder->setDataMapper($this);
+
+        // The two things a Timing choice cannot be saved without. Checked
+        // here rather than left to Deadline::validate(): a wait with no
+        // follow-up would be stored as a deadline with no transition, which
+        // *means* self-firing (§8.3) — a different behaviour, not an error.
+        $builder->addEventListener(FormEvents::POST_SUBMIT, static function (FormEvent $event): void {
+            $form = $event->getForm();
+            $timing = $form->get('timing')->getData();
+            if (!\in_array($timing, [self::TIMING_SELF_AFTER, self::TIMING_WAIT], true)) {
+                return;
+            }
+
+            if (null === self::submittedDuration($form->get('timing_amount')->getData(), $form->get('timing_unit')->getData(), $form->get('timing_exact')->getData())) {
+                $form->get('timing_amount')->addError(new FormError('Say how long: a whole number and a unit.'));
+            }
+            if (self::TIMING_WAIT === $timing && null === $form->get('deadline_transition')->getData()) {
+                $form->get('deadline_transition')->addError(new FormError('Choose the transition that follows the wait.'));
+            }
+        });
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -227,8 +288,33 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         $forms['next']->setData(\is_string($data['next'] ?? null) ? $data['next'] : null);
 
         $deadline = \is_array($data['deadline'] ?? null) ? $data['deadline'] : [];
-        $forms['deadline_after']->setData(\is_string($deadline['after'] ?? null) ? $deadline['after'] : null);
-        $forms['deadline_transition']->setData(\is_string($deadline['transition'] ?? null) ? $deadline['transition'] : null);
+        $after = \is_string($deadline['after'] ?? null) && '' !== $deadline['after'] ? $deadline['after'] : null;
+        $target = \is_string($deadline['transition'] ?? null) && '' !== $deadline['transition'] ? $deadline['transition'] : null;
+
+        $timing = self::TIMING_NONE;
+        $split = null;
+        $exact = null;
+        if (null !== $after) {
+            $interval = Duration::parse($after);
+            if (null === $target && null !== $interval && Duration::isStraightAway($interval)) {
+                $timing = self::TIMING_SELF_NOW;
+            } else {
+                $timing = null === $target ? self::TIMING_SELF_AFTER : self::TIMING_WAIT;
+                $split = Duration::split($after);
+                $exact = null === $split ? $after : null;
+            }
+        } elseif (null !== $target) {
+            // A follow-up with no duration: shown as the wait it was meant
+            // to be, so the missing number is asked for on the next save.
+            $timing = self::TIMING_WAIT;
+        }
+
+        $forms['timing']->setData($timing);
+        $forms['timing_amount']->setData($split['amount'] ?? null);
+        $forms['timing_unit']->setData($split['unit'] ?? 'days');
+        $forms['timing_exact']->setData($exact);
+        $forms['timing_original']->setData($after);
+        $forms['deadline_transition']->setData($target);
 
         foreach ($this->roles->keys() as $roleKey) {
             $forms[$roleKey]->setData(\is_string($data[$roleKey] ?? null) ? $data[$roleKey] : null);
@@ -287,15 +373,23 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
             $metadata['next'] = $next;
         }
 
-        $deadline = [];
-        foreach (['after' => 'deadline_after', 'transition' => 'deadline_transition'] as $key => $fieldName) {
-            $value = $forms[$fieldName]->getData();
-            if (null !== $value && '' !== $value) {
-                $deadline[$key] = $value;
+        $timing = $forms['timing']->getData();
+        $after = self::submittedDuration($forms['timing_amount']->getData(), $forms['timing_unit']->getData(), $forms['timing_exact']->getData());
+        if (self::TIMING_SELF_NOW === $timing) {
+            $original = $forms['timing_original']->getData();
+            $interval = \is_string($original) ? Duration::parse($original) : null;
+            $metadata['deadline'] = [
+                'after' => null !== $interval && Duration::isStraightAway($interval) ? $original : self::STRAIGHT_AWAY,
+            ];
+        } elseif (self::TIMING_SELF_AFTER === $timing && null !== $after) {
+            // No "transition" key: that absence is what makes it self-firing.
+            $metadata['deadline'] = ['after' => $after];
+        } elseif (self::TIMING_WAIT === $timing) {
+            $target = $forms['deadline_transition']->getData();
+            // Never stored without its follow-up — see the POST_SUBMIT check.
+            if (null !== $after && \is_string($target) && '' !== $target) {
+                $metadata['deadline'] = ['after' => $after, 'transition' => $target];
             }
-        }
-        if ([] !== $deadline) {
-            $metadata['deadline'] = $deadline;
         }
 
         foreach ($this->roles->keys() as $roleKey) {
@@ -306,6 +400,19 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         }
 
         $viewData = array_merge($metadata, $extra);
+    }
+
+    /**
+     * The duration the Timing inputs say: the number and unit when a number
+     * is given, otherwise the exact ISO value, otherwise nothing.
+     */
+    private static function submittedDuration(mixed $amount, mixed $unit, mixed $exact): ?string
+    {
+        if (\is_int($amount) && \is_string($unit)) {
+            return Duration::toIso($amount, $unit);
+        }
+
+        return \is_string($exact) && '' !== trim($exact) ? trim($exact) : null;
     }
 
     /**
@@ -346,6 +453,7 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
             ArgType::Choice => ChoiceType::class,
             ArgType::Integer => IntegerType::class,
             ArgType::Text => TextType::class,
+            ArgType::Transition => TransitionPickerType::class,
             ArgType::RuleCollection => throw new \LogicException(\sprintf('Rule-collection parameter "%s" declares no formType.', $arg->name)),
         };
     }
@@ -387,7 +495,7 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         return match ($arg->type) {
             ArgType::Choice => \in_array($value, $arg->choices ?? [], true),
             ArgType::Integer => \is_int($value),
-            ArgType::Text => \is_string($value),
+            ArgType::Text, ArgType::Transition => \is_string($value),
             ArgType::RuleCollection => \is_array($value),
         };
     }
@@ -396,7 +504,7 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
      * Maps the entity validator's keyed violations (§9.4 rule 1) onto the
      * matching panel fields: "[args][degrees]" → the rotate panel's degrees
      * input. "[task]" and "[digital_first]" match their children by name
-     * already; "[deadline]" lands on the after input.
+     * already; "[deadline]" lands on the Timing choice.
      *
      * Arg names are assumed unique across tasks (true today); on a collision
      * the first task's panel wins and the message still names the key.
@@ -405,7 +513,9 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
      */
     private function argsErrorMapping(): array
     {
-        $mapping = ['[deadline]' => 'deadline_after'];
+        // The Timing choice is always on screen; the input a deadline
+        // problem belongs to may not be.
+        $mapping = ['[deadline]' => 'timing'];
         foreach ($this->taskMap->names() as $taskName) {
             foreach ($this->taskMap->get($taskName)->describeArgs()->names() as $argName) {
                 $mapping['[args]['.$argName.']'] ??= 'args_'.$taskName.'.'.$argName;
@@ -413,24 +523,5 @@ class TransitionMetadataType extends AbstractType implements DataMapperInterface
         }
 
         return $mapping;
-    }
-
-    /**
-     * Every transition name with the definitions it appears in, for the
-     * filtered completion lists on "next"/"deadline_transition" (criterion
-     * 18). JSON: {"finish_rotate": ["3"], ...}.
-     */
-    private function transitionSuggestions(): string
-    {
-        $byName = [];
-        foreach ($this->transitions->findAll() as $transition) {
-            $definitionId = $transition->getDefinition()?->getId();
-            if (null !== $definitionId) {
-                $byName[$transition->getName()][] = (string) $definitionId;
-            }
-        }
-        ksort($byName);
-
-        return json_encode(array_map(array_values(...), array_map(array_unique(...), $byName)), \JSON_THROW_ON_ERROR);
     }
 }

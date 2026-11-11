@@ -11,6 +11,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Dto\EntityDto;
 use EasyCorp\Bundle\EasyAdminBundle\Dto\SearchDto;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\BooleanField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
@@ -93,9 +94,15 @@ class WorkflowPlaceCrudController extends AbstractCrudController
         yield TextField::new('name')
             ->setHelp('Machine-safe slug, unique within the workflow. Renaming is blocked while documents occupy this place.');
         yield TextField::new('label');
+        // An unmapped-looking property over the metadata's "end" key
+        // (specs/DynamicWorkflows.md §10.5): the only writer of that key.
+        yield BooleanField::new('end', 'Documents finish here')
+            ->renderAsSwitch(false)
+            ->setSortable(false)
+            ->setHelp('Tick for a place where a document\'s journey is over: delivered, filed, cancelled. It changes nothing a document does; it lets the workflow\'s page tell an end from a place with no way out drawn yet.');
         yield TextareaField::new('metadataJson', 'Metadata (JSON)')
             ->onlyOnForms()
             ->setRequired(false)
-            ->setHelp('JSON object, e.g. {"color": "#e0f2fe"}.');
+            ->setHelp('JSON object, e.g. {"color": "#e0f2fe"}. The end mark above is kept separately and is not shown here.');
     }
 }

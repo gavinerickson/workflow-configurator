@@ -78,6 +78,9 @@ final class ArgsSchemaValidator
 
                 return [];
 
+            case ArgType::Transition:
+                return \is_string($value) && '' !== trim($value) ? [] : [\sprintf('"%s" must name a transition', $arg->name)];
+
             case ArgType::RuleCollection:
                 // Structured beyond what a schema expresses; the task's
                 // validateArgs() owns it (§9.2).

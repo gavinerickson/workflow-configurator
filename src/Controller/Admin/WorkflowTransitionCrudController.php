@@ -22,6 +22,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use WorkflowConfigurator\Admin\TransitionSummary;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
+use WorkflowConfigurator\Admin\WorkflowNarrative;
 use WorkflowConfigurator\Entity\WorkflowPlace;
 use WorkflowConfigurator\Entity\WorkflowTransition;
 use WorkflowConfigurator\Form\TransitionMetadataType;
@@ -39,6 +40,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         private readonly ReachabilityChecker $reachabilityChecker,
         private readonly WorkflowAdminContext $workflowContext,
         private readonly TransitionSummary $summary,
+        private readonly WorkflowNarrative $narrative,
     ) {
     }
 
@@ -176,12 +178,14 @@ class WorkflowTransitionCrudController extends AbstractCrudController
     {
         parent::persistEntity($entityManager, $entityInstance);
         $this->warnAboutUnreachablePlaces($entityInstance);
+        $this->warnAboutNames($entityInstance);
     }
 
     public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
     {
         parent::updateEntity($entityManager, $entityInstance);
         $this->warnAboutUnreachablePlaces($entityInstance);
+        $this->warnAboutNames($entityInstance);
     }
 
     /**
@@ -193,6 +197,20 @@ class WorkflowTransitionCrudController extends AbstractCrudController
     private static function placeDefinitionAttr(WorkflowPlace $place): array
     {
         return ['data-definition' => (string) $place->getDefinition()?->getId()];
+    }
+
+    /**
+     * §10.4 — a follow-up may be named before it exists, so a name that
+     * matches nothing is a warning, never a rejection. Said once, here, and
+     * kept in view on the definition's page until it is true.
+     */
+    private function warnAboutNames(WorkflowTransition $transition): void
+    {
+        foreach ($this->narrative->namingProblems($transition) as $problem) {
+            // EasyAdmin renders flashes unescaped, and a follow-up's name
+            // is whatever the operator typed.
+            $this->addFlash('warning', htmlspecialchars($problem, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8'));
+        }
     }
 
     /**

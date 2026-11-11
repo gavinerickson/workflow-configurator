@@ -12,11 +12,13 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use WorkflowConfigurator\Admin\TransitionSummary;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Admin\WorkflowHubView;
+use WorkflowConfigurator\Admin\WorkflowNarrative;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowPlaceCrudController;
 use WorkflowConfigurator\Controller\Admin\WorkflowTransitionCrudController;
 use WorkflowConfigurator\Doctrine\TablePrefixListener;
 use WorkflowConfigurator\Form\TransitionMetadataType;
+use WorkflowConfigurator\Form\TransitionPickerType;
 use WorkflowConfigurator\Repository\WorkflowDefinitionRepository;
 use WorkflowConfigurator\Repository\WorkflowPlaceRepository;
 use WorkflowConfigurator\Repository\WorkflowTransitionRepository;
@@ -139,8 +141,13 @@ class WorkflowConfiguratorBundle extends AbstractBundle
         $services->set(ValidGuardExpressionValidator::class);
         $services->set(ProtectedOccupiedPlaceValidator::class);
 
+        // The workflow in words: no admin dependency, so a headless consumer
+        // can read a definition out too.
+        $services->set(WorkflowNarrative::class);
+
         if (class_exists(AbstractType::class)) {
             $services->set(TransitionMetadataType::class);
+            $services->set(TransitionPickerType::class);
         }
 
         // Keyed on the EasyAdmin *bundle* being registered, not the package

@@ -33,17 +33,68 @@
         .wc-route { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
         .wc-muted { color: var(--text-tertiary-color, #94a3b8); }
         .wc-hub-empty { padding: 14px 16px; color: var(--text-tertiary-color, #94a3b8); }
+        .wc-words { margin-block-start: 20px; border: 1px solid var(--border-secondary-color, #cbd5e1); border-radius: var(--border-radius, 4px); overflow: hidden; }
+        .wc-words-body { padding: 6px 16px 14px; }
+        .wc-words-place { padding-block: 10px; border-block-end: 1px solid var(--border-tertiary-color, #f1f5f9); }
+        .wc-words-place:last-of-type { border-block-end: 0; }
+        .wc-words-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--text-primary-color, #1e293b); }
+        .wc-words-sentence { margin: 4px 0 0; color: var(--text-secondary-color, #475569); max-width: 90ch; }
+        .wc-words-sentence b { color: var(--text-primary-color, #1e293b); font-weight: 600; }
+        .wc-words-warn { color: var(--color-warning, #b45309); }
+        .wc-words-divider { margin-block-start: 14px; font-size: var(--font-size-xs, 12px); text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-tertiary-color, #94a3b8); }
+        .wc-words-checks { margin-block-start: 12px; padding: 10px 14px; border: 1px solid var(--color-warning, #b45309); border-radius: var(--border-radius, 4px); color: var(--text-secondary-color, #475569); }
+        .wc-words-checks ul { margin: 4px 0 0; padding-inline-start: 18px; }
     </style>
 
     <div class="wc-hub">
-        {% if hub.unreachable is not empty %}
-            <div class="alert alert-warning">Places not reachable from the initial place: {{ hub.unreachable|join(', ') }}.</div>
-        {% endif %}
-
         {% if hub.mermaid is not empty %}
             <div class="wc-hub-diagram"><pre class="mermaid">{{ hub.mermaid }}</pre></div>
         {% else %}
             <div class="wc-hub-diagram wc-hub-empty">Nothing to draw yet — add a place to see the graph.</div>
+        {% endif %}
+
+        {# The workflow in words (specs/DynamicWorkflows.md §10.6). Every name
+           here is operator data and is escaped by Twig; nothing is |raw. #}
+        {% if hub.narrative.places is not empty %}
+            <section class="wc-words">
+                <div class="wc-hub-head"><span><b>In words</b><span>what this workflow does, read from its settings</span></span></div>
+                <div class="wc-words-body">
+                    {% for place in hub.narrative.places %}
+                        {% if not place.reachable and (loop.first or hub.narrative.places[loop.index0 - 1].reachable) %}
+                            <div class="wc-words-divider">Not reachable from the start</div>
+                        {% endif %}
+                        <div class="wc-words-place">
+                            <div class="wc-words-title">
+                                <b>{{ place.label }}</b>
+                                <span class="wc-name wc-muted">{{ place.name }}</span>
+                                {% if place.initial %}<span class="wc-tag wc-tag-initial">start</span>{% endif %}
+                                {% if place.end %}<span class="wc-tag">end</span>{% endif %}
+                            </div>
+                            {% for sentence in place.sentences %}
+                                <p class="wc-words-sentence">
+                                    {{ sentence.when }},
+                                    {% if sentence.url %}<a class="wc-name" href="{{ sentence.url }}">{{ sentence.transition }}</a>{% else %}<span class="wc-name">{{ sentence.transition }}</span>{% endif %}
+                                    {% if sentence.task %}runs <span class="wc-name">{{ sentence.task }}</span>{% else %}does nothing else{% endif %}
+                                    and the document moves to
+                                    {% for to in sentence.tos %}<b>{{ to }}</b>{{ not loop.last ? ' and ' }}{% else %}nowhere{% endfor %}.
+                                </p>
+                            {% endfor %}
+                            {% if place.closing %}
+                                <p class="wc-words-sentence{{ place.end ? '' : ' wc-words-warn' }}">{{ place.closing }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+
+                    {% if hub.narrative.checks is not empty %}
+                        <div class="wc-words-checks">
+                            <b>Things to check</b>
+                            <ul>
+                                {% for check in hub.narrative.checks %}<li>{{ check }}</li>{% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
         {% endif %}
 
         <div class="wc-hub-panels">
@@ -63,6 +114,7 @@
                                     <td>
                                         <a class="wc-name" href="{{ place.url }}">{{ place.name }}</a>
                                         {% if place.initial %}<span class="wc-tag wc-tag-initial">initial</span>{% endif %}
+                                        {% if place.end %}<span class="wc-tag">end</span>{% endif %}
                                     </td>
                                     <td>{{ place.label }}</td>
                                     <td style="text-align: end;">

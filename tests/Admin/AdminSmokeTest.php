@@ -10,6 +10,7 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use PHPUnit\Framework\Attributes\Group;
 use RequirementsAsCode\Attribute\Verifies;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Field\ChoiceFormField;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Controller\Admin\WorkflowDefinitionCrudController;
@@ -148,7 +149,7 @@ class AdminSmokeTest extends WebTestCase
         self::assertStringNotContainsString('<template>', $html, 'Help text opened a real element.');
 
         // Everything the browser would have lost inside it is still here.
-        foreach (['[metadata][next]', '[metadata][deadline_after]', '[metadata][deadline_transition]', '[metadata][extra]'] as $name) {
+        foreach (['[metadata][next][pick]', '[metadata][timing]', '[metadata][timing_amount]', '[metadata][deadline_transition][pick]', '[metadata][extra]'] as $name) {
             self::assertStringContainsString($name, $html, $name.' did not survive the help text.');
         }
         self::assertGreaterThan(0, $crawler->filter('[data-task-panel="rotate"]')->count());
@@ -168,7 +169,7 @@ class AdminSmokeTest extends WebTestCase
             static fn ($node): string => trim($node->text())
         );
 
-        foreach (['Task', 'Next transition', 'Additional metadata (advanced)'] as $expected) {
+        foreach (['Task', 'Then', 'What time does here', 'How long', 'Additional metadata (advanced)'] as $expected) {
             self::assertContains($expected, $labels, $expected.' has no visible label.');
         }
 
@@ -291,6 +292,110 @@ class AdminSmokeTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('draft', $crawler->filter('.wc-hub-panel')->eq(0)->text());
+    }
+
+    public function testTheDefinitionPageReadsTheWorkflowInWords(): void
+    {
+        $this->seedGraph();
+        $definition = $this->entityManager->getRepository(WorkflowDefinition::class)->findOneBy(['name' => 'seeded']);
+        self::assertNotNull($definition);
+        // A label an operator typed is text, wherever it is shown.
+        $definition->getPlaces()->findFirst(static fn ($i, WorkflowPlace $p): bool => 'stamped' === $p->getName())
+            ?->setLabel('<b>Stamped</b>');
+        $this->entityManager->flush();
+
+        $crawler = $this->client->request('GET', self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowDefinitionCrudController::class)
+            ->setAction(Action::DETAIL)
+            ->setEntityId($definition->getId())
+            ->generateUrl());
+        self::assertResponseIsSuccessful();
+
+        $words = $crawler->filter('.wc-words');
+        self::assertSame(1, $words->count());
+        self::assertStringContainsString('When someone applies it, stamp does nothing else and the document moves to <b>Stamped</b>.', (string) preg_replace('/\s+/', ' ', $words->text()));
+        self::assertSame(0, $words->filter('.wc-words-sentence b b')->count(), 'A place label opened a real element.');
+
+        // A place with no way out that nobody marked as an end is said so,
+        // twice: where it is read, and under the things to check.
+        self::assertStringContainsString('not marked as an end', $words->filter('.wc-words-warn')->text());
+        self::assertStringContainsString('"stamped" has no way out', $words->filter('.wc-words-checks')->text());
+    }
+
+    public function testAPlaceIsMarkedAsAnEndFromItsForm(): void
+    {
+        $this->seedGraph();
+        $place = $this->entityManager->getRepository(WorkflowPlace::class)->findOneBy(['name' => 'stamped']);
+        self::assertNotNull($place);
+        $place->setMetadata(['color' => '#e0f2fe']);
+        $this->entityManager->flush();
+
+        $editUrl = self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowPlaceCrudController::class)
+            ->setAction(Action::EDIT)
+            ->setEntityId($place->getId())
+            ->generateUrl();
+
+        $crawler = $this->client->request('GET', $editUrl);
+        self::assertResponseIsSuccessful();
+        $form = $crawler->filter('form[name="WorkflowPlace"]')->form();
+        $end = $form['WorkflowPlace[end]'];
+        self::assertInstanceOf(ChoiceFormField::class, $end);
+        $end->tick();
+        $this->client->submit($form);
+        self::assertResponseRedirects();
+
+        $this->entityManager->clear();
+        $place = $this->entityManager->getRepository(WorkflowPlace::class)->findOneBy(['name' => 'stamped']);
+        self::assertNotNull($place);
+        // The mark is stored beside the other metadata, which it left alone.
+        self::assertSame(['color' => '#e0f2fe', 'end' => true], $place->getMetadata());
+
+        // The textarea neither shows the mark nor may write it.
+        $crawler = $this->client->request('GET', $editUrl);
+        $form = $crawler->filter('form[name="WorkflowPlace"]')->form();
+        self::assertSame('{ "color": "#e0f2fe" }', preg_replace('/\s+/', ' ', (string) $form->getValues()['WorkflowPlace[metadataJson]']));
+        $form['WorkflowPlace[metadataJson]'] = '{"end": false}';
+        $crawler = $this->client->submit($form);
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('Documents finish here', $crawler->filter('.invalid-feedback')->text());
+    }
+
+    public function testSavingANameThatMatchesNothingWarnsAndStillSaves(): void
+    {
+        $this->seedGraph();
+        $transition = $this->entityManager->getRepository(WorkflowTransition::class)->findOneBy(['name' => 'stamp']);
+        self::assertNotNull($transition);
+
+        $editUrl = self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowTransitionCrudController::class)
+            ->setAction(Action::EDIT)
+            ->setEntityId($transition->getId())
+            ->generateUrl();
+
+        $crawler = $this->client->request('GET', $editUrl);
+        self::assertResponseIsSuccessful();
+        // What the saved transition says, above the form.
+        self::assertStringContainsString('stamp does nothing else', $crawler->filter('.wc-says')->text());
+
+        $form = $crawler->filter('form[name="WorkflowTransition"]')->form();
+        $form['WorkflowTransition[metadata][task]'] = 'rotate';
+        $form['WorkflowTransition[metadata][args_rotate][degrees]'] = '90';
+        $form['WorkflowTransition[metadata][next][pick]'] = '__new__';
+        $form['WorkflowTransition[metadata][next][other]'] = 'not_made_yet';
+        $this->client->submit($form);
+        self::assertResponseRedirects();
+
+        $this->entityManager->clear();
+        $transition = $this->entityManager->getRepository(WorkflowTransition::class)->findOneBy(['name' => 'stamp']);
+        self::assertSame('not_made_yet', $transition?->getMetadata()['next'] ?? null);
+
+        // Through the dashboard's own redirect to the page that shows it.
+        $crawler = $this->client->followRedirect();
+        while ($this->client->getResponse()->isRedirection()) {
+            $crawler = $this->client->followRedirect();
+        }
+        self::assertStringContainsString('no transition is called that', $crawler->filter('#flash-messages')->text());
     }
 
     private function seedSecondGraph(): WorkflowDefinition

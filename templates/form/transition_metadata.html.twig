@@ -19,7 +19,7 @@
 #}
 
 {% block workflow_transition_metadata_widget %}
-    {% set wc_reserved = ['task', 'next', 'deadline_after', 'deadline_transition', 'extra'] %}
+    {% set wc_reserved = ['task', 'next', 'timing', 'timing_amount', 'timing_unit', 'timing_exact', 'timing_original', 'deadline_transition', 'extra'] %}
     {% set wc_panels = form|filter(child => child.vars.name starts with 'args_') %}
     {% set wc_roles = form|filter(child => child.vars.name not in wc_reserved and not (child.vars.name starts with 'args_')) %}
 
@@ -44,6 +44,15 @@
         .wc-panel { border-inline-start: 3px solid var(--border-secondary-color, #cbd5e1); padding: 12px 0 2px 16px; margin-block: 8px; }
         .wc-panel-title { font-size: var(--font-size-xs, 12px); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary-color, #64748b); }
         .wc-panel-help { font-size: var(--font-size-sm, 13px); color: var(--text-secondary-color, #64748b); margin: 6px 0 0; }
+        .wc-timing-detail { border-inline-start: 3px solid var(--border-secondary-color, #cbd5e1); padding: 4px 0 2px 16px; margin-block: 8px; }
+        .wc-timing-says { color: var(--text-primary-color, #1e293b); margin: 8px 0 0; }
+        .wc-timing-how { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 180px); gap: 0 12px; }
+        .wc-timing-exact summary { font-size: var(--font-size-sm, 13px); color: var(--text-secondary-color, #64748b); cursor: pointer; }
+        .wc-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .wc-picker select { flex: 1 1 260px; max-width: 420px; }
+        .wc-picker input { flex: 1 1 200px; max-width: 280px; }
+        .wc-picker-hint { flex-basis: 100%; font-size: var(--font-size-sm, 13px); color: var(--color-warning, #b45309); }
+        .wc-picker-hint:empty { display: none; }
     </style>
 
     <div class="wc-metadata">
@@ -67,12 +76,33 @@
             {% set wc_child = form.next %}{{ block('wc_row') }}
         </section>
 
-        <section class="wc-section">
-            <h3 class="wc-section-title">Deadline <span>what happens if the document just rests there</span></h3>
-            <div class="wc-grid">
-                {% set wc_child = form.deadline_after %}{{ block('wc_row') }}
-                {% set wc_child = form.deadline_transition %}{{ block('wc_row') }}
+        <section class="wc-section" data-timing>
+            <h3 class="wc-section-title">Timing <span>whether time alone moves a document</span></h3>
+
+            {% set wc_child = form.timing %}{{ block('wc_row') }}
+
+            {# Without JS every input below stays visible and the choice above
+               decides which are read. #}
+            <div class="wc-timing-detail" data-timing-detail>
+                <p class="wc-timing-says" data-timing-says
+                   data-says-self-now="Documents waiting in {from} go through this transition by themselves, at the next deadline sweep."
+                   data-says-self-after="Documents that have waited this long in {from} go through this transition by themselves."
+                   data-says-wait="A document may wait in {to} at most this long, and then the transition below is applied to it."></p>
+                <div data-timing-for="self_after wait">
+                    <div class="wc-timing-how">
+                        {% set wc_child = form.timing_amount %}{{ block('wc_row') }}
+                        {% set wc_child = form.timing_unit %}{{ block('wc_row') }}
+                    </div>
+                    <details class="wc-timing-exact"{% if form.timing_exact.vars.value is not empty or form.timing_exact.vars.errors|length > 0 %} open{% endif %}>
+                        <summary>A wait a number and a unit cannot say</summary>
+                        {% set wc_child = form.timing_exact %}{{ block('wc_row') }}
+                    </details>
+                </div>
+                <div data-timing-for="wait">
+                    {% set wc_child = form.deadline_transition %}{{ block('wc_row') }}
+                </div>
             </div>
+            {{ form_widget(form.timing_original) }}
         </section>
 
         {% if wc_roles|length > 0 %}
@@ -107,3 +137,17 @@
         {{ form_errors(wc_child) }}
     </div>
 {% endblock wc_row %}
+
+{#
+   The transition picker (specs/DynamicWorkflows.md §10.4): the select, the
+   text input its last option reveals, and a line for what the client finds
+   out about a typed name. assets/workflow_transition_form.js narrows the
+   select to the chosen definition and drives the rest.
+#}
+{% block workflow_transition_picker_widget %}
+    <div class="wc-picker" data-transition-picker-wrap>
+        {{ form_widget(form.pick) }}
+        {{ form_widget(form.other) }}
+        <span class="wc-picker-hint" data-transition-picker-hint></span>
+    </div>
+{% endblock workflow_transition_picker_widget %}

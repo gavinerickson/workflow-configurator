@@ -106,4 +106,14 @@ class ArgsSchemaValidatorTest extends TestCase
 
         self::assertArrayNotHasKey('postage', $problems);
     }
+
+    public function testATransitionParameterMustNameSomething(): void
+    {
+        $schema = new ArgsSchema([new ArgDefinition('otherwise', 'Otherwise', ArgType::Transition)]);
+
+        // Any name passes: the transition may not exist yet (§10.4).
+        self::assertSame([], ArgsSchemaValidator::validate($schema, ['otherwise' => 'to_print_room']));
+        self::assertArrayHasKey('otherwise', ArgsSchemaValidator::validate($schema, ['otherwise' => ' ']));
+        self::assertArrayHasKey('otherwise', ArgsSchemaValidator::validate($schema, ['otherwise' => 7]));
+    }
 }

@@ -5,3 +5,16 @@
     {{ include('@WorkflowConfigurator/crud/_context_bar.html.twig') }}
     {{ parent() }}
 {% endblock %}
+
+{# What the saved transition says today, before it is changed
+   (specs/DynamicWorkflows.md §10.6). Empty for definitions and places. #}
+{% block main %}
+    {% set wc_says = workflow_admin_says(entity.instance) %}
+    {% if wc_says is not empty %}
+        <div class="wc-says" style="border-inline-start: 3px solid var(--border-secondary-color, #cbd5e1); padding: 6px 0 6px 14px; margin-block-end: 18px; color: var(--text-secondary-color, #475569);">
+            <div style="font-size: var(--font-size-xs, 12px); text-transform: uppercase; letter-spacing: 0.02em;">As saved, this transition says</div>
+            {% for sentence in wc_says %}<div>{{ sentence }}</div>{% endfor %}
+        </div>
+    {% endif %}
+    {{ parent() }}
+{% endblock %}

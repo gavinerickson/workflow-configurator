@@ -24,4 +24,12 @@ enum ArgType: string
      * validateArgs() owns its validation (§9.2).
      */
     case RuleCollection = 'rule_collection';
+
+    /**
+     * The name of another transition of the same definition, e.g. the route
+     * a forking task takes when it says no (specs/DynamicWorkflows.md §10.4).
+     * Rendered as the transition picker; validated as a non-empty string,
+     * since a name may be given before its transition exists.
+     */
+    case Transition = 'transition';
 }

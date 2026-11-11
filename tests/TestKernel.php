@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpKernel\Kernel;
 use WorkflowConfigurator\PlaceOccupancyCheckerInterface;
 use WorkflowConfigurator\Tests\Fixtures\CountingOccupancyChecker;
+use WorkflowConfigurator\Tests\Fixtures\FixtureForkTask;
 use WorkflowConfigurator\Tests\Fixtures\FixtureLifecycleRole;
 use WorkflowConfigurator\Tests\Fixtures\FixtureMarkupHelpTask;
 use WorkflowConfigurator\Tests\Fixtures\FixtureNoArgsTask;
@@ -87,6 +88,7 @@ class TestKernel extends Kernel
 
         $services->set(RecordingStampTask::class);
         $services->set(FixtureRotateTask::class);
+        $services->set(FixtureForkTask::class);
         $services->set(FixtureStamperTask::class);
         $services->set(FixtureNoArgsTask::class);
         $services->set(FixtureMarkupHelpTask::class);

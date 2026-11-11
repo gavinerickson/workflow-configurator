@@ -2,13 +2,14 @@
 
 namespace WorkflowConfigurator\Tests\Fixtures;
 
-use WorkflowConfigurator\TransitionRoleInterface;
+use WorkflowConfigurator\NarratedTransitionRoleInterface;
 
 /**
  * A plain role vocabulary: two values, no completeness rule. Exercises the
- * generic form field, cardinality check and typo check.
+ * generic form field, cardinality check and typo check. It narrates one of
+ * its values and not the other, so the reading's fallback is exercised too.
  */
-class FixtureReviewRole implements TransitionRoleInterface
+class FixtureReviewRole implements NarratedTransitionRoleInterface
 {
     public static function getMetadataKey(): string
     {
@@ -40,6 +41,11 @@ class FixtureReviewRole implements TransitionRoleInterface
         $raw = $metadata[self::getMetadataKey()] ?? null;
 
         return \is_string($raw) && \in_array($raw, $this->getValues(), true) ? $raw : null;
+    }
+
+    public function getNarrative(string $value): ?string
+    {
+        return 'approve' === $value ? 'a reviewer approves it' : null;
     }
 
     public function getRequiredValues(): array

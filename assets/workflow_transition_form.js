@@ -156,7 +156,8 @@ const initTiming = () => {
         const select = document.querySelector(`select[name$="${suffix}"]`);
         const names = null === select ? [] : Array.from(select.selectedOptions).map((option) => option.text.trim()).filter((text) => '' !== text);
 
-        return 0 === names.length ? fallback : names.join(' or ');
+        // TomSelect can leave a selected option listed twice.
+        return 0 === names.length ? fallback : Array.from(new Set(names)).join(' or ');
     };
 
     const update = () => {

@@ -23,6 +23,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use WorkflowConfigurator\Admin\TransitionSummary;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
 use WorkflowConfigurator\Admin\WorkflowNarrative;
+use WorkflowConfigurator\EndPlaceChecker;
 use WorkflowConfigurator\Entity\WorkflowPlace;
 use WorkflowConfigurator\Entity\WorkflowTransition;
 use WorkflowConfigurator\Form\TransitionMetadataType;
@@ -41,6 +42,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         private readonly WorkflowAdminContext $workflowContext,
         private readonly TransitionSummary $summary,
         private readonly WorkflowNarrative $narrative,
+        private readonly EndPlaceChecker $endPlaceChecker,
     ) {
     }
 
@@ -179,6 +181,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         parent::persistEntity($entityManager, $entityInstance);
         $this->warnAboutUnreachablePlaces($entityInstance);
         $this->warnAboutNames($entityInstance);
+        $this->warnAboutTimedExits($entityInstance);
     }
 
     public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
@@ -186,6 +189,7 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         parent::updateEntity($entityManager, $entityInstance);
         $this->warnAboutUnreachablePlaces($entityInstance);
         $this->warnAboutNames($entityInstance);
+        $this->warnAboutTimedExits($entityInstance);
     }
 
     /**
@@ -209,6 +213,21 @@ class WorkflowTransitionCrudController extends AbstractCrudController
         foreach ($this->narrative->namingProblems($transition) as $problem) {
             // EasyAdmin renders flashes unescaped, and a follow-up's name
             // is whatever the operator typed.
+            $this->addFlash('warning', htmlspecialchars($problem, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8'));
+        }
+    }
+
+    /**
+     * §10.5 — a Timing transition out of a place marked as an end is said,
+     * never refused.
+     */
+    private function warnAboutTimedExits(WorkflowTransition $transition): void
+    {
+        $definition = $transition->getDefinition();
+        if (null === $definition) {
+            return;
+        }
+        foreach ($this->endPlaceChecker->describeTimedExits($definition) as $problem) {
             $this->addFlash('warning', htmlspecialchars($problem, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8'));
         }
     }

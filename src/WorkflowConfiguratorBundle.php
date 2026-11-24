@@ -124,6 +124,7 @@ class WorkflowConfiguratorBundle extends AbstractBundle
         $services->set(GuardExpressionSubscriber::class);
         $services->set(TaskDispatchSubscriber::class);
         $services->set(ReachabilityChecker::class);
+        $services->set(EndPlaceChecker::class);
         $services->set(OccupiedPlaceRemovalListener::class);
 
         // Consumer-supplied behaviour, collected by tag.

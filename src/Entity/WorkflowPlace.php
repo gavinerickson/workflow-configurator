@@ -25,9 +25,11 @@ class WorkflowPlace
 
     /**
      * The metadata key marking a place where documents finish
-     * (specs/DynamicWorkflows.md §10.5). Nothing at run time reads it; it
-     * lets the workflow read out in words (§10.6) tell an end from a place
-     * nobody has drawn a way out of.
+     * (specs/DynamicWorkflows.md §10.5). It changes nothing a document does
+     * in the workflow, and a transition may still leave the place (a
+     * recall). It lets the workflow read out in words (§10.6) tell an end
+     * from a place nobody has drawn a way out of, and an application may read
+     * it through isEnd() to treat documents there as finished.
      */
     public const END_KEY = 'end';
 

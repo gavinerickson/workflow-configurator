@@ -2,6 +2,7 @@
 
 namespace WorkflowConfigurator\Controller\Admin;
 
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 use EasyCorp\Bundle\EasyAdminBundle\Collection\FieldCollection;
 use EasyCorp\Bundle\EasyAdminBundle\Collection\FilterCollection;
@@ -17,6 +18,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use WorkflowConfigurator\Admin\WorkflowAdminContext;
+use WorkflowConfigurator\EndPlaceChecker;
 use WorkflowConfigurator\Entity\WorkflowPlace;
 
 /**
@@ -29,7 +31,35 @@ class WorkflowPlaceCrudController extends AbstractCrudController
 {
     public function __construct(
         private readonly WorkflowAdminContext $workflowContext,
+        private readonly EndPlaceChecker $endPlaceChecker,
     ) {
+    }
+
+    public function persistEntity(EntityManagerInterface $entityManager, $entityInstance): void
+    {
+        parent::persistEntity($entityManager, $entityInstance);
+        $this->warnAboutTimedExits($entityInstance);
+    }
+
+    public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
+    {
+        parent::updateEntity($entityManager, $entityInstance);
+        $this->warnAboutTimedExits($entityInstance);
+    }
+
+    /**
+     * §10.5 — an end place a Timing transition leaves is said, never refused.
+     */
+    private function warnAboutTimedExits(WorkflowPlace $place): void
+    {
+        $definition = $place->getDefinition();
+        if (null === $definition) {
+            return;
+        }
+        foreach ($this->endPlaceChecker->describeTimedExits($definition) as $problem) {
+            // EasyAdmin renders flashes unescaped.
+            $this->addFlash('warning', htmlspecialchars($problem, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8'));
+        }
     }
 
     public static function getEntityFqcn(): string
@@ -99,7 +129,7 @@ class WorkflowPlaceCrudController extends AbstractCrudController
         yield BooleanField::new('end', 'Documents finish here')
             ->renderAsSwitch(false)
             ->setSortable(false)
-            ->setHelp('Tick for a place where a document\'s journey is over: delivered, filed, cancelled. It changes nothing a document does; it lets the workflow\'s page tell an end from a place with no way out drawn yet.');
+            ->setHelp('Tick for a place where a document\'s journey is over: delivered, filed, cancelled. Documents here count as finished, so their files may be archived, even if a way out such as a recall still leaves the place. It changes nothing a document does in the workflow.');
         yield TextareaField::new('metadataJson', 'Metadata (JSON)')
             ->onlyOnForms()
             ->setRequired(false)

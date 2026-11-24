@@ -398,6 +398,47 @@ class AdminSmokeTest extends WebTestCase
         self::assertStringContainsString('no transition is called that', $crawler->filter('#flash-messages')->text());
     }
 
+    /** §10.5 — an end place a Timing transition leaves is said, and the save stands. */
+    public function testMarkingAnEndThatATimingTransitionLeavesWarnsAndStillSaves(): void
+    {
+        $this->seedGraph();
+        $definition = $this->entityManager->getRepository(WorkflowDefinition::class)->findOneBy(['name' => 'seeded']);
+        $received = $this->entityManager->getRepository(WorkflowPlace::class)->findOneBy(['name' => 'received']);
+        $stamped = $this->entityManager->getRepository(WorkflowPlace::class)->findOneBy(['name' => 'stamped']);
+        self::assertNotNull($definition);
+        self::assertNotNull($received);
+        self::assertNotNull($stamped);
+        // Fires itself: a document resting at `stamped` for a day goes back to `received`.
+        $definition->addTransition(new WorkflowTransition()->setName('send_back')->addFrom($stamped)->addTo($received)->setMetadata(['deadline' => ['after' => 'P1D']]));
+        $this->entityManager->flush();
+
+        $editUrl = self::getContainer()->get(AdminUrlGenerator::class)
+            ->setController(WorkflowPlaceCrudController::class)
+            ->setAction(Action::EDIT)
+            ->setEntityId($stamped->getId())
+            ->generateUrl();
+        $crawler = $this->client->request('GET', $editUrl);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('count as finished', $crawler->filter('form[name="WorkflowPlace"]')->text());
+        $form = $crawler->filter('form[name="WorkflowPlace"]')->form();
+        $end = $form['WorkflowPlace[end]'];
+        self::assertInstanceOf(ChoiceFormField::class, $end);
+        $end->tick();
+        $this->client->submit($form);
+        self::assertResponseRedirects();
+
+        $this->entityManager->clear();
+        self::assertTrue($this->entityManager->getRepository(WorkflowPlace::class)->findOneBy(['name' => 'stamped'])?->isEnd(), 'saved all the same');
+
+        $crawler = $this->client->followRedirect();
+        while ($this->client->getResponse()->isRedirection()) {
+            $crawler = $this->client->followRedirect();
+        }
+        $flash = $crawler->filter('#flash-messages')->text();
+        self::assertStringContainsString('Documents finish at "stamped"', $flash);
+        self::assertStringContainsString('"send_back" moves them on', $flash);
+    }
+
     private function seedSecondGraph(): WorkflowDefinition
     {
         $definition = new WorkflowDefinition()->setName('second')->setLabel('Second');
